@@ -19,6 +19,7 @@
 
 namespace Zephir;
 use Zephir\Documentation\File;
+use Zephir\Documentation\Theme;
 
 
 /**
@@ -38,6 +39,11 @@ class Documentation
     protected $classes;
 
     /**
+     * @var Theme
+     */
+    protected $theme;
+
+    /**
      * @param CompilerFile[] $files
      * @param Config         $config
      */
@@ -45,17 +51,50 @@ class Documentation
     {
         $this->config = $config;
         $this->classes = $classes;
+
+        $themeConfig = $config->get("theme","documentation");
+
+
+        if(!$themeConfig)
+            throw new ConfigException("Theme configuration is not present");
+
+        $themeDir = realpath(ZEPHIRPATH . "/templates/Documentation/themes/" . $themeConfig["name"]);
+
+        if(!file_exists($themeDir))
+            throw new ConfigException("There is no theme name " . $themeConfig["name"]);
+
+
+        $outputDir = $config->get("output-directory","documentation");
+        $outputDir = str_replace('%version%', $this->config->get('version'), $outputDir);
+
+
+
+        if(!$outputDir)
+            throw new ConfigException("Documentation's output directory is not configured");
+
+        if(!file_exists($outputDir))
+            if(!mkdir($outputDir,0777,true))
+                throw new Exception("Can't write output directory $outputDir");
+
+        if(!is_writable($outputDir))
+            throw new Exception("Can't write output directory $outputDir");
+
+
+
+        $this->theme = new Theme($themeDir,$outputDir,$themeConfig);
+
+
     }
 
     public function build(){
 
         $files = array();
 
-
-
         foreach($this->classes as $className => $class){
             $file = new File\ClassFile($this->config,$class->getClassDefinition());
-            $file->writeFile("/home/blabka");
+
+            $this->theme->drawFile($file);
+
         }
 
     }

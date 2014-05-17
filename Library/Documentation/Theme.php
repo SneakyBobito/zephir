@@ -9,36 +9,37 @@
 namespace Zephir\Documentation;
 
 
+use Zephir\Exception;
+
 class Theme {
 
     protected $themeDir;
     protected $outputDir;
+    protected $themeConfig;
 
-    function __construct($themeDir , $outputDir)
+    function __construct($themeDir , $outputDir , $themeConfig)
     {
-        $this->outputDir = $outputDir;
-        $this->themeDir = $themeDir;
+        $this->outputDir   = $outputDir;
+        $this->themeConfig = $themeConfig;
+        $this->themeDir    = $themeDir;
     }
 
 
     public function drawFile(AbstractFile $file){
 
-        $output   = pathinfo( $this->themeDir . "/" . $file->getOutputFile());
+        $output   = pathinfo( $this->outputDir . "/" . $file->getOutputFile());
         $outputDirname  = $output["dirname"];
         $outputBasename = $output["basename"];
         $outputFilename = $outputDirname . "/" . $outputBasename;
-
-        $input   = pathinfo( $this->themeDir . "/" . $file->getTemplateName());
-        $inputDirname  = $input["dirname"];
-        $inputBasename = $input["basename"];
-        $inputFilename = $inputDirname . "/" . $inputBasename;
 
 
         // todo : check if writable
         if(!file_exists($outputDirname))
             mkdir($outputDirname,0777,true);
 
-        $template = new Template($file->getData() , $inputFilename);
+
+        $template = new Template($file->getData() , $this->themeDir , $file->getTemplateName());
+
         touch($outputFilename);
         $template->write($outputFilename);
 

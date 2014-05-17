@@ -27,7 +27,7 @@ class ClassFile extends AbstractFile {
 
     public function getTemplateName()
     {
-        return "html/class.html";
+        return "class.phtml";
     }
 
     public function getData()
