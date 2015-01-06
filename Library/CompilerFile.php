@@ -28,12 +28,20 @@ namespace Zephir;
 class CompilerFile
 {
 
+    /**
+     * Namespace of the
+     */
     protected $_namespace;
 
     protected $_className;
 
     protected $_filePath;
 
+    protected $_external = false;
+
+    /**
+     * Original internal representation (IR) of the file
+     */
     protected $_ir;
 
     protected $_originalNode;
@@ -45,6 +53,9 @@ class CompilerFile
      */
     protected $_classDefinition;
 
+    /**
+     * @var array
+     */
     protected $_headerCBlocks;
 
     /**
@@ -62,13 +73,13 @@ class CompilerFile
      *
      * @param string $className
      * @param string $filePath
+     * @param Config $config
+     * @param Logger $logger
      */
     public function __construct($className, $filePath, Config $config, Logger $logger)
     {
         $this->_className = $className;
         $this->_filePath = $filePath;
-        $this->_compiledFilePath = preg_replace('/\.zep$/', '', $className);
-        $this->_filesCompiled = array();
         $this->_headerCBlocks = array();
         $this->_config = $config;
         $this->_logger = $logger;
@@ -81,42 +92,73 @@ class CompilerFile
      */
     public function getClassDefinition()
     {
+        $this->_classDefinition->setAliasManager($this->_aliasManager);
         return $this->_classDefinition;
+    }
+
+    /**
+     * Sets if the class belongs to an external dependency or not
+     *
+     * @param boolean $external
+     */
+    public function setIsExternal($external)
+    {
+        $this->_external = (bool) $external;
+    }
+
+    /**
+     * Checks if the class file belongs to an external dependency or not
+     *
+     * @return bool
+     */
+    public function isExternal()
+    {
+        return $this->_external;
     }
 
     /**
      * Compiles the file generating a JSON intermediate representation
      *
+     * @param Compiler $compiler
      * @return array
      */
-    public function genIR()
+    public function genIR(Compiler $compiler)
     {
 
-        $compilePath = '.temp' . DIRECTORY_SEPARATOR . Compiler::VERSION . DIRECTORY_SEPARATOR . str_replace(DIRECTORY_SEPARATOR, '_', realpath($this->_filePath)) . ".js";
+        $normalizedPath = str_replace(array(DIRECTORY_SEPARATOR, ":", '/'), '_', realpath($this->_filePath));
+        $compilePath = DIRECTORY_SEPARATOR . Compiler::VERSION . DIRECTORY_SEPARATOR . $normalizedPath . ".js";
         $zepRealPath = realpath($this->_filePath);
 
-        if (!file_exists(ZEPHIRPATH . '/bin/zephir-parser')) {
-            throw new Exception('zephir-parser was not found');
+        if (PHP_OS == "WINNT") {
+            $zephirParserBinary = ZEPHIRPATH . 'bin\zephir-parser.exe';
+        } else {
+            $zephirParserBinary = ZEPHIRPATH . 'bin/zephir-parser';
+        }
+
+        if (!file_exists($zephirParserBinary)) {
+            throw new Exception($zephirParserBinary . ' was not found');
         }
 
         $changed = false;
-        if (file_exists($compilePath)) {
-            if (filemtime($compilePath) < filemtime($zepRealPath) || filemtime($compilePath) < filemtime(ZEPHIRPATH . '/bin/zephir-parser')) {
-                system(ZEPHIRPATH . '/bin/zephir-parser ' . $zepRealPath . ' > ' . $compilePath);
+        $fileSystem = $compiler->getFileSystem();
+        if ($fileSystem->exists($compilePath)) {
+            $modificationTime = $fileSystem->modificationTime($compilePath);
+            if ($modificationTime < filemtime($zepRealPath) || $modificationTime < filemtime($zephirParserBinary)) {
+                $fileSystem->system($zephirParserBinary . ' ' . $zepRealPath, 'stdout', $compilePath);
                 $changed = true;
             }
         } else {
-            system(ZEPHIRPATH . '/bin/zephir-parser ' . $zepRealPath . ' > ' . $compilePath);
+            $fileSystem->system($zephirParserBinary . ' ' . $zepRealPath, 'stdout', $compilePath);
             $changed = true;
         }
 
-        if ($changed || !file_exists($compilePath . '.php')) {
-            $json = json_decode(file_get_contents($compilePath), true);
+        if ($changed || !$fileSystem->exists($compilePath . '.php')) {
+            $json = json_decode($fileSystem->read($compilePath), true);
             $data = '<?php return ' . var_export($json, true) . ';';
-            file_put_contents($compilePath . '.php', $data);
+            $fileSystem->write($compilePath . '.php', $data);
         }
 
-        return require $compilePath . '.php';
+        return $fileSystem->requireFile($compilePath . '.php');
     }
 
     /**
@@ -124,7 +166,7 @@ class CompilerFile
      *
      * @param CompilationContext $compilationContext
      * @param string $namespace
-     * @param string $topStatement
+     * @param array $topStatement
      */
     public function compileClass(CompilationContext $compilationContext, $namespace, $topStatement)
     {
@@ -195,9 +237,13 @@ class CompilerFile
     public function preCompileInterface($namespace, $topStatement)
     {
         $classDefinition = new ClassDefinition($namespace, $topStatement['name']);
+        $classDefinition->setIsExternal($this->_external);
 
         if (isset($topStatement['extends'])) {
-            $classDefinition->setExtendsClass($this->getFullName($topStatement['extends']));
+            foreach ($topStatement['extends'] as &$extend) {
+                $extend['value'] = $this->getFullName($extend['value']);
+            }
+            $classDefinition->setImplementsInterfaces($topStatement['extends']);
         }
 
         $classDefinition->setType('interface');
@@ -302,7 +348,13 @@ class CompilerFile
                                         'expr' => array(
                                             'type' => 'variable',
                                             'value' => $name,
-                                        )
+                                            'file'  => $property['file'],
+                                            'line'  => $property['line'],
+                                            'char'  => $property['char']
+                                        ),
+                                        'file'  => $property['file'],
+                                        'line'  => $property['line'],
+                                        'char'  => $property['char']
                                     )
                                 )
                             )
@@ -353,10 +405,12 @@ class CompilerFile
      *
      * @param string $namespace
      * @param array $topStatement
+     * @param CompilationContext $compilationContext
      */
-    public function preCompileClass($namespace, $topStatement)
+    public function preCompileClass($namespace, $topStatement, $compilationContext)
     {
         $classDefinition = new ClassDefinition($namespace, $topStatement['name']);
+        $classDefinition->setIsExternal($this->_external);
 
         if (isset($topStatement['extends'])) {
             $classDefinition->setExtendsClass($this->getFullName($topStatement['extends']));
@@ -437,16 +491,28 @@ class CompilerFile
         }
 
         $this->_classDefinition = $classDefinition;
+
+        /**
+         * Assign current class definition to the compilation context
+         */
+        $compilationContext->classDefinition = $classDefinition;
+
+        /**
+         * Run pre-compilation passes
+         */
+        $classDefinition->preCompile($compilationContext);
     }
 
     /**
+     * Pre-compiles a Zephir file. Generates the IR and perform basic validations
+     *
      * @throws ParseException
      * @throws CompilerException
      * @throws Exception
      */
-    public function preCompile()
+    public function preCompile(Compiler $compiler)
     {
-        $ir = $this->genIR();
+        $ir = $this->genIR($compiler);
 
         if (!is_array($ir)) {
             throw new Exception("Cannot parse file: " . realpath($this->_filePath));
@@ -460,6 +526,31 @@ class CompilerFile
          * Alias Manager
          */
         $this->_aliasManager = new AliasManager();
+
+        /**
+         * Compilation context stores common objects required by compilation entities
+         */
+        $compilationContext = new CompilationContext;
+
+        /**
+         * Set global compiler in the compilation context
+         */
+        $compilationContext->compiler = $compiler;
+
+        /**
+         * Set global config in the compilation context
+         */
+        $compilationContext->config = $this->_config;
+
+        /**
+         * Set global logger in the compilation context
+         */
+        $compilationContext->logger = $this->_logger;
+
+        /**
+         * Alias manager
+         */
+        $compilationContext->aliasManager = $this->_aliasManager;
 
         /**
          * Traverse the top level statements looking for the namespace
@@ -501,7 +592,7 @@ class CompilerFile
                     }
                     $class = true;
                     $name = $topStatement['name'];
-                    $this->preCompileClass($namespace, $topStatement);
+                    $this->preCompileClass($namespace, $topStatement, $compilationContext);
                     $this->_originalNode = $topStatement;
                     break;
 
@@ -528,8 +619,13 @@ class CompilerFile
             throw new CompilerException("Every file must contain at least a class or an interface", $topStatement);
         }
 
-        if (strtolower($this->_filePath) != strtolower(str_replace('\\', '/', $namespace) . '/' . $name) . '.zep') {
-            throw new CompilerException('Unexpected class name ' . str_replace('\\', '/', $namespace) . '\\' . $name . ' in file: ' . $this->_filePath);
+        if (!$this->_external) {
+            $expectedPath = strtolower(str_replace('\\', DIRECTORY_SEPARATOR, $namespace) . DIRECTORY_SEPARATOR . $name) . '.zep';
+            if (strtolower($this->_filePath) != $expectedPath) {
+                $className = str_replace('\\', '/', $namespace) . '\\' . $name;
+                $message = 'Unexpected class name ' . $className . ' in file: ' . $this->_filePath . ', expected: ' . $expectedPath;
+                throw new CompilerException($message);
+            }
         }
 
         $this->_ir = $ir;
@@ -548,7 +644,7 @@ class CompilerFile
     /**
      * Check dependencies
      *
-     * @param \Compiler $compiler
+     * @param Compiler $compiler
      */
     public function checkDependencies(Compiler $compiler)
     {
@@ -565,7 +661,9 @@ class CompilerFile
                         $extendedDefinition = $compiler->getInternalClassDefinition($extendedClass);
                         $classDefinition->setExtendsClassDefinition($extendedDefinition);
                     } else {
-                        throw new CompilerException('Cannot locate class "' . $extendedClass . '" when extending class "' . $classDefinition->getCompleteName() . '"', $this->_originalNode);
+                        $extendedDefinition = new ClassDefinitionRuntime($extendedClass);
+                        $classDefinition->setExtendsClassDefinition($extendedDefinition);
+                        $this->_logger->warning('Cannot locate class "' . $extendedClass . '" when extending class "' . $classDefinition->getCompleteName() . '"', 'nonexistent-class', $this->_originalNode);
                     }
                 }
             } else {
@@ -577,9 +675,34 @@ class CompilerFile
                         $extendedDefinition = $compiler->getInternalClassDefinition($extendedClass);
                         $classDefinition->setExtendsClassDefinition($extendedDefinition);
                     } else {
-                        throw new CompilerException('Cannot locate interface "' . $extendedClass . '" when extending interface "' . $classDefinition->getCompleteName() . '"', $this->_originalNode);
+                        $extendedDefinition = new ClassDefinitionRuntime($extendedClass);
+                        $classDefinition->setExtendsClassDefinition($extendedDefinition);
+                        $this->_logger->warning('Cannot locate class "' . $extendedClass . '" when extending interface "' . $classDefinition->getCompleteName() . '"', 'nonexistent-class', $this->_originalNode);
                     }
                 }
+            }
+        }
+
+        $implementedInterfaces = $classDefinition->getImplementedInterfaces();
+        if ($implementedInterfaces) {
+            $interfaceDefinitions = array();
+
+            foreach ($implementedInterfaces as $interface) {
+                if ($compiler->isInterface($interface)) {
+                    $interfaceDefinitions[$interface] = $compiler->getClassDefinition($interface);
+                } else {
+                    if ($compiler->isInternalInterface($interface)) {
+                        $interfaceDefinitions[$interface] = $compiler->getInternalClassDefinition($interface);
+                    } else {
+                        $extendedDefinition = new ClassDefinitionRuntime($extendedClass);
+                        $classDefinition->setExtendsClassDefinition($extendedDefinition);
+                        $this->_logger->warning('Cannot locate class "' . $interface . '" when extending interface "' . $classDefinition->getCompleteName() . '"', 'nonexistent-class', $this->_originalNode);
+                    }
+                }
+            }
+
+            if ($interfaceDefinitions) {
+                $classDefinition->setImplementedInterfaceDefinitions($interfaceDefinitions);
             }
         }
     }
@@ -587,14 +710,21 @@ class CompilerFile
     /**
      * Compiles the file
      *
-     * @param \Compiler $compiler
-     * @param \StringsManager $stringsManager
+     * @param Compiler $compiler
+     * @param StringsManager $stringsManager
      */
     public function compile(Compiler $compiler, StringsManager $stringsManager)
     {
 
         if (!$this->_ir) {
             throw new CompilerException('IR related to compiled file is missing');
+        }
+
+        /**
+         * External classes should not be compiled as part of the extension
+         */
+        if ($this->_external) {
+            return;
         }
 
         /**
@@ -704,19 +834,21 @@ class CompilerFile
                 }
             } else {
 
+                $fileSystem = $compiler->getFileSystem();
+
                 /**
                  * Use md5 hash to avoid rewrite the file again and again when it hasn't changed
                  * thus avoiding unnecesary recompilations
                  */
                 $output = $codePrinter->getOutput();
-                $hash = hash_file('md5', $filePath);
+                $hash = $fileSystem->getHashFile('md5', $filePath, true);
                 if (md5($output) != $hash) {
                     file_put_contents($filePath, $output);
                 }
 
                 if ($compilationContext->headerPrinter) {
                     $output = $compilationContext->headerPrinter->getOutput();
-                    $hash = hash_file('md5', $filePathHeader);
+                    $hash = $fileSystem->getHashFile('md5', $filePathHeader, true);
                     if (md5($output) != $hash) {
                         file_put_contents($filePathHeader, $output);
                     }

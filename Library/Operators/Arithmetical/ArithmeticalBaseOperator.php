@@ -85,6 +85,8 @@ class ArithmeticalBaseOperator extends BaseOperator
     }
 
     /**
+     * Compiles the arithmetical operation
+     *
      * @param array $expression
      * @param CompilationContext $compilationContext
      */
@@ -208,7 +210,7 @@ class ArithmeticalBaseOperator extends BaseOperator
                         return new CompiledExpression('double', '(' . $left->getCode() . ' ' . $this->_operator . ' ' . $right->getBooleanCode() . ')', $expression);
 
                     case 'variable':
-                        $variableRight = $compilationContext->symbolTable->getVariableForRead($expression['right']['value'], $compilationContext, $expression);
+                        $variableRight = $compilationContext->symbolTable->getVariableForRead($right->getCode(), $compilationContext, $expression);
                         switch ($variableRight->getType()) {
                             case 'int':
                             case 'uint':
@@ -314,7 +316,7 @@ class ArithmeticalBaseOperator extends BaseOperator
                                 return new CompiledExpression('bool', '(' . $left->getCode() . ' ' . $this->_bitOperator . ' ' . $right->getBooleanCode() . ')', $expression);
 
                             case 'variable':
-                                $variableRight = $compilationContext->symbolTable->getVariableForRead($expression['right']['value'], $compilationContext, $expression['right']);
+                                $variableRight = $compilationContext->symbolTable->getVariableForRead($right->getCode(), $compilationContext, $expression['right']);
                                 switch ($variableRight->getType()) {
 
                                     case 'int':
@@ -364,7 +366,7 @@ class ArithmeticalBaseOperator extends BaseOperator
                                 return new CompiledExpression('bool', '(' . $left->getCode() . ' ' . $this->_bitOperator . ' ' . $right->getBooleanCode() . ')', $expression);
 
                             case 'variable':
-                                $variableRight = $compilationContext->symbolTable->getVariableForRead($expression['right']['value'], $compilationContext, $expression['right']);
+                                $variableRight = $compilationContext->symbolTable->getVariableForRead($right->getCode(), $compilationContext, $expression['right']);
                                 switch ($variableRight->getType()) {
 
                                     case 'int':
@@ -400,6 +402,55 @@ class ArithmeticalBaseOperator extends BaseOperator
 
                     case 'string':
                         throw new CompilerException("Cannot operate string variables'", $expression);
+
+                    case 'array':
+                        switch ($right->getType()) {
+                            /* a(var) + a(x) */
+                            case 'array':
+                            case 'variable':
+                                $variableRight = $compilationContext->symbolTable->getVariableForRead($right->resolve(null, $compilationContext), $compilationContext, $expression);
+                                switch ($variableRight->getType()) {
+
+                                    /* a(var) + a(var) */
+                                    case 'array':
+                                    case 'variable':
+
+                                        $compilationContext->headersManager->add('kernel/operators');
+
+                                        if ($variableLeft->isLocalOnly()) {
+                                            $op1 = '&' . $variableLeft->getName();
+                                        } else {
+                                            $op1 = $variableLeft->getName();
+                                        }
+
+                                        if ($variableRight->isLocalOnly()) {
+                                            $op2 = '&' . $variableRight->getName();
+                                        } else {
+                                            $op2 = $variableRight->getName();
+                                        }
+
+                                        $expected = $this->getExpected($compilationContext, $expression);
+                                        if ($expected->isLocalOnly()) {
+                                            $compilationContext->codePrinter->output($this->_zvalOperator . '(&' . $expected->getName() . ', ' . $op1 . ', ' . $op2 . ' TSRMLS_CC);');
+                                        } else {
+                                            $compilationContext->codePrinter->output($this->_zvalOperator . '(' . $expected->getName() . ', ' . $op1 . ', ' . $op2 . ' TSRMLS_CC);');
+                                        }
+
+                                        if ($variableLeft->isTemporal()) {
+                                            $variableLeft->setIdle(true);
+                                        }
+                                        if ($variableRight->isTemporal()) {
+                                            $variableRight->setIdle(true);
+                                        }
+
+                                        return new CompiledExpression('variable', $expected->getName(), $expression);
+
+                                    default:
+                                        throw new CompilerException("Cannot operate 'array with variable ('" . $variableRight->getType() . "')", $expression);
+                                }
+                                break;
+                        }
+                        break;
 
                     case 'variable':
                         switch ($right->getType()) {

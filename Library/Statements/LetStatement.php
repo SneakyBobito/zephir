@@ -34,17 +34,20 @@ use Zephir\Statements\Let\ArrayIndex as LetArrayIndex;
 use Zephir\Statements\Let\ArrayIndexAppend as LetArrayIndexAppend;
 use Zephir\Statements\Let\ObjectProperty as LetObjectProperty;
 use Zephir\Statements\Let\ObjectDynamicProperty as LetObjectDynamicProperty;
+use Zephir\Statements\Let\ObjectDynamicStringProperty as LetObjectDynamicStringProperty;
 use Zephir\Statements\Let\ObjectPropertyAppend as LetObjectPropertyAppend;
 use Zephir\Statements\Let\ObjectPropertyArrayIndex as LetObjectPropertyArrayIndex;
 use Zephir\Statements\Let\ObjectPropertyArrayIndexAppend as LetObjectPropertyArrayIndexAppend;
 use Zephir\Statements\Let\ObjectPropertyIncr as LetObjectPropertyIncr;
 use Zephir\Statements\Let\ObjectPropertyDecr as LetObjectPropertyDecr;
 use Zephir\Statements\Let\StaticProperty as LetStaticProperty;
+use Zephir\Statements\Let\StaticPropertyAppend as LetStaticPropertyAppend;
 use Zephir\Statements\Let\StaticPropertyArrayIndex as LetStaticPropertyArrayIndex;
 use Zephir\Statements\Let\StaticPropertyArrayIndexAppend as LetStaticPropertyArrayIndexAppend;
 use Zephir\Statements\Let\Decr as LetDecr;
 use Zephir\Statements\Let\Incr as LetIncr;
 use Zephir\Statements\Let\ExportSymbol as LetExportSymbol;
+use Zephir\Statements\Let\ExportSymbolString as LetExportSymbolString;
 
 /**
  * LetStatement
@@ -71,12 +74,27 @@ class LetStatement extends StatementAbstract
              * Get the symbol from the symbol table if necessary
              */
             switch ($assignment['assign-type']) {
+
                 case 'static-property':
                 case 'static-property-append':
                 case 'static-property-array-index':
                 case 'static-property-array-index-append':
+                case 'dynamic-variable-string':
                     $symbolVariable = null;
                     break;
+
+                case 'array-index':
+                case 'variable-append':
+                case 'object-property':
+                case 'array-index-append':
+                case 'string-dynamic-object-property':
+                case 'variable-dynamic-object-property':
+                case 'array-index-append':
+                case 'string-dynamic-object-property':
+                case 'static-property-array-index-append':
+                    $symbolVariable = $compilationContext->symbolTable->getVariableForUpdate($variable, $compilationContext, $assignment);
+                    break;
+
                 default:
                     $symbolVariable = $compilationContext->symbolTable->getVariableForWrite($variable, $compilationContext, $assignment);
                     break;
@@ -155,7 +173,8 @@ class LetStatement extends StatementAbstract
                     break;
 
                 case 'string-dynamic-object-property':
-                    /* @todo, implement this */
+                    $let = new LetObjectDynamicStringProperty();
+                    $let->assign($variable, $symbolVariable, $resolvedExpr, $compilationContext, $assignment);
                     break;
 
                 case 'static-property':
@@ -164,7 +183,8 @@ class LetStatement extends StatementAbstract
                     break;
 
                 case 'static-property-append':
-                    /* @todo, implement this */
+                    $let = new LetStaticPropertyAppend();
+                    $let->assignStatic($variable, $assignment['property'], $resolvedExpr, $compilationContext, $assignment);
                     break;
 
                 case 'static-property-array-index':
@@ -224,6 +244,11 @@ class LetStatement extends StatementAbstract
 
                 case 'dynamic-variable':
                     $let = new LetExportSymbol();
+                    $let->assign($variable, $symbolVariable, $resolvedExpr, $compilationContext, $assignment);
+                    break;
+
+                case 'dynamic-variable-string':
+                    $let = new LetExportSymbolString();
                     $let->assign($variable, $symbolVariable, $resolvedExpr, $compilationContext, $assignment);
                     break;
 

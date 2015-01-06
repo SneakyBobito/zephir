@@ -22,7 +22,7 @@ namespace Zephir;
 /**
  * CompilationContext
  *
- * This class encapsulates important entities requiring during compilation
+ * This class encapsulates important entities required during compilation
  */
 class CompilationContext
 {
@@ -123,6 +123,13 @@ class CompilationContext
     public $insideSwitch = 0;
 
     /**
+     * Current cycle/loop block
+     *
+     * @var array
+     */
+    public $cycleBlocks = array();
+
+    /**
      * The current branch, variables declared in conditional branches
      * must be market if they're used out of those branches
      */
@@ -172,7 +179,7 @@ class CompilationContext
 
     /**
      * Transform class/interface name to FQN format
-     * WHY WHY :'(
+     * @todo WHY WHY :'(
      *
      * @param string $className
      * @return string

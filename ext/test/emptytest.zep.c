@@ -45,7 +45,7 @@ PHP_METHOD(Test_EmptyTest, testDynamicVarArrayEmpty) {
 
 PHP_METHOD(Test_EmptyTest, testDynamicVarArrayNotEmpty) {
 
-	zval *a, *_0;
+	zval *a, *_0 = NULL;
 
 	ZEPHIR_MM_GROW();
 
@@ -54,13 +54,13 @@ PHP_METHOD(Test_EmptyTest, testDynamicVarArrayNotEmpty) {
 	ZEPHIR_INIT_VAR(_0);
 	ZVAL_LONG(_0, 1);
 	zephir_array_fast_append(a, _0);
-	ZEPHIR_INIT_BNVAR(_0);
+	ZEPHIR_INIT_NVAR(_0);
 	ZVAL_LONG(_0, 2);
 	zephir_array_fast_append(a, _0);
-	ZEPHIR_INIT_BNVAR(_0);
+	ZEPHIR_INIT_NVAR(_0);
 	ZVAL_LONG(_0, 3);
 	zephir_array_fast_append(a, _0);
-	ZEPHIR_INIT_BNVAR(_0);
+	ZEPHIR_INIT_NVAR(_0);
 	ZVAL_LONG(_0, 4);
 	zephir_array_fast_append(a, _0);
 	RETURN_MM_BOOL(ZEPHIR_IS_EMPTY(a));
@@ -87,6 +87,21 @@ PHP_METHOD(Test_EmptyTest, testNotEmptyString) {
 
 	ZEPHIR_INIT_VAR(a);
 	ZVAL_STRING(a, "test string", 1);
+	RETURN_MM_BOOL(ZEPHIR_IS_EMPTY(a));
+
+}
+
+PHP_METHOD(Test_EmptyTest, testString) {
+
+	zval *a_param = NULL;
+	zval *a = NULL;
+
+	ZEPHIR_MM_GROW();
+	zephir_fetch_params(1, 1, 0, &a_param);
+
+	zephir_get_strval(a, a_param);
+
+
 	RETURN_MM_BOOL(ZEPHIR_IS_EMPTY(a));
 
 }

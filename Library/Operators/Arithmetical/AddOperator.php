@@ -19,6 +19,11 @@
 
 namespace Zephir\Operators\Arithmetical;
 
+/**
+ * AddOperator
+ *
+ * Generates an arithmetical operation according to the operands
+ */
 class AddOperator extends ArithmeticalBaseOperator
 {
 
@@ -26,5 +31,5 @@ class AddOperator extends ArithmeticalBaseOperator
 
     protected $_bitOperator = '|';
 
-    protected $_zvalOperator = 'zephir_add_function';
+    protected $_zvalOperator = 'zephir_add_function_ex';
 }

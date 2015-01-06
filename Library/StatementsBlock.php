@@ -19,6 +19,7 @@
 
 namespace Zephir;
 
+use Zephir\Exception;
 use Zephir\Statements\DeclareStatement;
 use Zephir\Statements\IfStatement;
 use Zephir\Statements\ForStatement;
@@ -36,6 +37,7 @@ use Zephir\Statements\DoWhileStatement;
 use Zephir\Statements\SwitchStatement;
 use Zephir\Statements\TryCatchStatement;
 use Zephir\Statements\UnsetStatement;
+use Zephir\Passes\MutateGathererPass;
 
 /**
  * StatementsBlock
@@ -44,13 +46,17 @@ use Zephir\Statements\UnsetStatement;
  */
 class StatementsBlock
 {
-    protected $_statements;
+    protected $statements;
 
-    protected $_unreachable;
+    protected $unreachable;
 
-    protected $_debug = false;
+    protected $debug = false;
 
-    protected $_lastStatement;
+    protected $loop = false;
+
+    protected $mutateGatherer;
+
+    protected $lastStatement;
 
     /**
      * StatementsBlock constructor
@@ -59,7 +65,19 @@ class StatementsBlock
      */
     public function __construct(array $statements)
     {
-        $this->_statements = $statements;
+        $this->statements = $statements;
+    }
+
+    /**
+     * Sets whether the statements blocks belongs to a loop
+     *
+     * @param boolean $loop
+     * @return StatementsBlock
+     */
+    public function isLoop($loop)
+    {
+        $this->loop = $loop;
+        return $this;
     }
 
     /**
@@ -85,15 +103,23 @@ class StatementsBlock
          */
         $compilationContext->branchManager->addBranch($currentBranch);
 
-        $this->_unreachable = $unreachable;
+        $this->unreachable = $unreachable;
 
-        $statements = $this->_statements;
+        $statements = $this->statements;
+
+        /**
+         * Reference the block if it belongs to a loop
+         */
+        if ($this->loop) {
+            array_push($compilationContext->cycleBlocks, $this);
+        }
+
         foreach ($statements as $statement) {
 
             /**
              * Generate GDB hints
              */
-            if ($this->_debug) {
+            if ($this->debug) {
                 if (isset($statement['file'])) {
                     if ($statement['type'] != 'declare' && $statement['type'] != 'comment') {
                         $compilationContext->codePrinter->outputNoIndent('#line ' . $statement['line'] . ' "' . $statement['file'] . '"');
@@ -104,7 +130,7 @@ class StatementsBlock
             /**
              * Show warnings if code is generated when the 'unreachable state' is 'on'
              */
-            if ($this->_unreachable === true) {
+            if ($this->unreachable === true) {
                 switch ($statement['type']) {
 
                     case 'echo':
@@ -183,7 +209,7 @@ class StatementsBlock
                 case 'return':
                     $returnStatement = new ReturnStatement($statement);
                     $returnStatement->compile($compilationContext);
-                    $this->_unreachable = true;
+                    $this->unreachable = true;
                     break;
 
                 case 'require':
@@ -199,13 +225,13 @@ class StatementsBlock
                 case 'break':
                     $breakStatement = new BreakStatement($statement);
                     $breakStatement->compile($compilationContext);
-                    $this->_unreachable = true;
+                    $this->unreachable = true;
                     break;
 
                 case 'continue':
                     $continueStatement = new ContinueStatement($statement);
                     $continueStatement->compile($compilationContext);
-                    $this->_unreachable = true;
+                    $this->unreachable = true;
                     break;
 
                 case 'unset':
@@ -216,13 +242,13 @@ class StatementsBlock
                 case 'throw':
                     $throwStatement = new ThrowStatement($statement);
                     $throwStatement->compile($compilationContext);
-                    $this->_unreachable = true;
+                    $this->unreachable = true;
                     break;
 
                 case 'try-catch':
                     $throwStatement = new TryCatchStatement($statement);
                     $throwStatement->compile($compilationContext);
-                    $this->_unreachable = true;
+                    $this->unreachable = false;
                     break;
 
                 case 'fetch':
@@ -269,13 +295,23 @@ class StatementsBlock
                     $compilationContext->codePrinter->output($statement['value']);
                     break;
 
+                case 'empty':
+                    break;
+
                 default:
-                    $compilationContext->codePrinter->output('//missing ' . $statement['type']);
+                    throw new Exception('Unsupported statement: ' . $statement['type']);
             }
 
             if ($statement['type'] != 'comment') {
-                $this->_lastStatement = $statement;
+                $this->lastStatement = $statement;
             }
+        }
+
+        /**
+         * Reference the block if it belongs to a loop
+         */
+        if ($this->loop) {
+            array_pop($compilationContext->cycleBlocks);
         }
 
         /**
@@ -299,7 +335,7 @@ class StatementsBlock
      */
     public function getStatements()
     {
-        return $this->_statements;
+        return $this->statements;
     }
 
     /**
@@ -309,7 +345,7 @@ class StatementsBlock
      */
     public function setStatements(array $statements)
     {
-        $this->_statements = $statements;
+        $this->statements = $statements;
     }
 
     /**
@@ -319,6 +355,43 @@ class StatementsBlock
      */
     public function getLastStatementType()
     {
-        return $this->_lastStatement['type'];
+        return $this->lastStatement['type'];
+    }
+
+    /**
+     * Returns the last statement executed
+     *
+     * @return array
+     */
+    public function getLastStatement()
+    {
+        return $this->lastStatement;
+    }
+
+    /**
+     * Returns the last line in the last statement
+     */
+    public function getLastLine()
+    {
+        if (!$this->lastStatement) {
+            $this->lastStatement = $this->statements[count($this->statements) - 1];
+        }
+    }
+
+    /**
+     * Create/Returns a mutate gatherer pass for this block
+     *
+     * @param boolean $pass
+     * @return MutateGathererPass
+     */
+    public function getMutateGatherer($pass = false)
+    {
+        if (!$this->mutateGatherer) {
+            $this->mutateGatherer = new MutateGathererPass;
+        }
+        if ($pass) {
+            $this->mutateGatherer->pass($this);
+        }
+        return $this->mutateGatherer;
     }
 }

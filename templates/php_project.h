@@ -4,7 +4,9 @@
 #ifndef PHP_%PROJECT_UPPER%_H
 #define PHP_%PROJECT_UPPER%_H 1
 
+#ifdef PHP_WIN32
 #define ZEPHIR_RELEASE 1
+#endif
 
 #include "kernel/globals.h"
 
@@ -19,6 +21,8 @@
 
 ZEND_BEGIN_MODULE_GLOBALS(%PROJECT_LOWER%)
 
+	int initialized;
+
 	/* Memory */
 	zephir_memory_entry *start_memory; /**< The first preallocated frame */
 	zephir_memory_entry *end_memory; /**< The last preallocate frame */
@@ -29,6 +33,9 @@ ZEND_BEGIN_MODULE_GLOBALS(%PROJECT_LOWER%)
 
 	/** Function cache */
 	HashTable *fcache;
+
+	/* Cache enabled */
+	unsigned int cache_enabled;
 
 	/* Max recursion control */
 	unsigned int recursive_lock;
@@ -58,10 +65,12 @@ ZEND_EXTERN_MODULE_GLOBALS(%PROJECT_LOWER%)
 	#define ZEPHIR_VGLOBAL &(%PROJECT_LOWER%_globals)
 #endif
 
+#define ZEPHIR_API ZEND_API
+
 #define zephir_globals_def %PROJECT_LOWER%_globals
 #define zend_zephir_globals_def zend_%PROJECT_LOWER%_globals
 
-extern zend_module_entry %PROJECT_LOWER%_module_entry;
-#define phpext_%PROJECT_LOWER%_ptr &%PROJECT_LOWER%_module_entry
+extern zend_module_entry %PROJECT_LOWER_SAFE%_module_entry;
+#define phpext_%PROJECT_LOWER%_ptr &%PROJECT_LOWER_SAFE%_module_entry
 
 #endif

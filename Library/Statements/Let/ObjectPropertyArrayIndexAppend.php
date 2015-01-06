@@ -58,6 +58,10 @@ class ObjectPropertyArrayIndexAppend extends ArrayIndex
          */
         $variableExpr = $this->_getResolvedArrayItem($resolvedExpr, $compilationContext);
 
+        if (count($statement['index-expr']) > 16) {
+            throw new CompilerException("Too many array indexes", $statement);
+        }
+
         /**
          * Only string/variable/int
          */
@@ -76,10 +80,46 @@ class ObjectPropertyArrayIndexAppend extends ArrayIndex
                 case 'variable':
                     break;
                 default:
-                    throw new CompilerException("Expression: " . $resolvedIndex->getType() . " cannot be used as index without cast", $statement['index-expr']);
+                    throw new CompilerException("Expression: " . $resolvedIndex->getType() . " cannot be used as index without cast", $statement);
             }
 
             $offsetExprs[] = $resolvedIndex;
+        }
+
+        /**
+         * Check if the property to update is defined
+         */
+        if ($symbolVariable->getRealName() == 'this') {
+
+            $classDefinition = $compilationContext->classDefinition;
+            if (!$classDefinition->hasProperty($property)) {
+                throw new CompilerException("Class '" . $classDefinition->getCompleteName() . "' does not have a property called: '" . $property . "'", $statement);
+            }
+
+            $propertyDefinition = $classDefinition->getProperty($property);
+        } else {
+
+            /**
+             * If we know the class related to a variable we could check if the property
+             * is defined on that class
+             */
+            if ($symbolVariable->hasAnyDynamicType('object')) {
+
+                $classType = current($symbolVariable->getClassTypes());
+                $compiler = $compilationContext->compiler;
+
+                if ($compiler->isClass($classType)) {
+
+                    $classDefinition = $compiler->getClassDefinition($classType);
+                    if (!$classDefinition) {
+                        throw new CompilerException("Cannot locate class definition for class: " . $classType, $statement);
+                    }
+
+                    if (!$classDefinition->hasProperty($property)) {
+                        throw new CompilerException("Class '" . $classType . "' does not have a property called: '" . $property . "'", $statement);
+                    }
+                }
+            }
         }
 
         $keys = '';
@@ -153,7 +193,7 @@ class ObjectPropertyArrayIndexAppend extends ArrayIndex
             throw new CompilerException("Cannot mutate variable '" . $variable . "' because it is not initialized", $statement);
         }
 
-        if ($symbolVariable->getType() != 'variable') {
+        if (!$symbolVariable->isVariable()) {
             throw new CompilerException("Attempt to use variable type: " . $symbolVariable->getType() . " as object", $statement);
         }
 

@@ -37,10 +37,10 @@ class ArithmeticTest extends \PHPUnit_Framework_TestCase
 
     public function testDoubleSum()
     {
-        $this->assertTrue($this->class->doubleSum() == 3.0);
-        $this->assertTrue($this->class->double2Sum() == 3.0);
-        $this->assertTrue($this->class->doubleSumSimple() == 3.0);
-        $this->assertTrue($this->class->doubleSum2Simple() == 3.0);
+        $this->assertSame($this->class->doubleSum(), 3.0);
+        $this->assertSame($this->class->double2Sum(), 3.0);
+        $this->assertSame($this->class->doubleSumSimple(), 3.0);
+        $this->assertSame($this->class->doubleSum2Simple(), 3.0);
     }
 
     public function testSummTest()
@@ -81,11 +81,10 @@ class ArithmeticTest extends \PHPUnit_Framework_TestCase
 
     public function testBoolSum()
     {
-        $this->assertTrue($this->class->boolSum() == true);
-        $this->assertTrue($this->class->double2Sum() == true);
-        $this->assertTrue($this->class->bool2Sum() == true);
-        $this->assertTrue($this->class->bool3Sum() == true);
-        $this->assertTrue($this->class->boolSumSimple() == true);
+        $this->assertTrue($this->class->boolSum());
+        $this->assertTrue($this->class->bool2Sum());
+        $this->assertTrue($this->class->bool3Sum());
+        $this->assertTrue($this->class->boolSumSimple());
     }
 
     public function testAddSum()
@@ -124,8 +123,10 @@ class ArithmeticTest extends \PHPUnit_Framework_TestCase
     public function testSubTest()
     {
         $this->assertTrue($this->class->intSub() === -1);
-        $this->assertTrue($this->class->int2Sub() === -1);
+        $this->assertTrue($this->class->intSub2() === -1);
+        $this->assertTrue($this->class->intLetSub() === -1);
         $this->assertTrue($this->class->intSubSimple() === -1);
+        
         $this->assertTrue($this->class->boolSub() === true);
         $this->assertTrue($this->class->bool2Sub() === true);
         $this->assertTrue($this->class->bool3Sub() === false); // true - false
@@ -200,6 +201,12 @@ class ArithmeticTest extends \PHPUnit_Framework_TestCase
         $this->assertTrue($this->class->mul1() == 5);
         $this->assertTrue($this->class->mul2(5) == 25);
         $this->assertTrue($this->class->mul3() == 1 * (1 << 10));
+    }
+
+    public function testDiv()
+    {
+        $this->assertSame(24.75, $this->class->div1());
+        $this->assertSame(24.75, $this->class->div2());
     }
 
     public function testLetStatement()

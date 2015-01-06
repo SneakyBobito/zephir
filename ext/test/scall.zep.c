@@ -57,7 +57,7 @@ PHP_METHOD(Test_Scall, testMethod4) {
 
 
 
-	zephir_add_function(return_value, a, b TSRMLS_CC);
+	zephir_add_function_ex(return_value, a, b TSRMLS_CC);
 	return;
 
 }
@@ -70,7 +70,7 @@ PHP_METHOD(Test_Scall, testMethod5) {
 
 
 
-	zephir_add_function(return_value, a, b TSRMLS_CC);
+	zephir_add_function_ex(return_value, a, b TSRMLS_CC);
 	return;
 
 }
@@ -83,7 +83,7 @@ PHP_METHOD(Test_Scall, testMethod6) {
 
 
 
-	zephir_add_function(return_value, a, b TSRMLS_CC);
+	zephir_add_function_ex(return_value, a, b TSRMLS_CC);
 	return;
 
 }
@@ -392,6 +392,13 @@ PHP_METHOD(Test_Scall, testCall18) {
 		}
 	}
 	RETURN_MM_LONG(j);
+
+}
+
+PHP_METHOD(Test_Scall, testMethodStatic) {
+
+
+	RETURN_STRING("hello Scall", 1);
 
 }
 

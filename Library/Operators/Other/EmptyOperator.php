@@ -51,12 +51,12 @@ class EmptyOperator extends BaseOperator
         $leftExpr->setReadOnly(true);
         $left = $leftExpr->compile($compilationContext);
 
-        if ($left->getType() != 'variable') {
+        if ($left->getType() != 'variable' && $left->getType() != 'array') {
             throw new CompilerException("'empty' operand only can be a variable", $expression['left']);
         }
 
         $variableLeft = $compilationContext->symbolTable->getVariableForRead($left->getCode(), $compilationContext, $expression['left']);
-        if ($variableLeft->isNotVariableAndString()) {
+        if (!$variableLeft->isVariable() && !$variableLeft->isString() && !$variableLeft->isArray()) {
             throw new CompilerException("Only dynamic/string variables can be used in 'empty' operators", $expression['left']);
         }
 

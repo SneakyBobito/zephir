@@ -4,7 +4,9 @@
 #ifndef PHP_TEST_H
 #define PHP_TEST_H 1
 
+#ifdef PHP_WIN32
 #define ZEPHIR_RELEASE 1
+#endif
 
 #include "kernel/globals.h"
 
@@ -12,7 +14,7 @@
 #define PHP_TEST_VERSION     "1.0.0"
 #define PHP_TEST_EXTNAME     "test"
 #define PHP_TEST_AUTHOR      "Zephir Team and contributors"
-#define PHP_TEST_ZEPVERSION  "0.4.1a"
+#define PHP_TEST_ZEPVERSION  "0.5.9a"
 #define PHP_TEST_DESCRIPTION "Description test for<br/>Test Extension"
 
 typedef struct _zephir_struct_test { 
@@ -25,6 +27,8 @@ typedef struct _zephir_struct_test {
 
 ZEND_BEGIN_MODULE_GLOBALS(test)
 
+	int initialized;
+
 	/* Memory */
 	zephir_memory_entry *start_memory; /**< The first preallocated frame */
 	zephir_memory_entry *end_memory; /**< The last preallocate frame */
@@ -35,6 +39,9 @@ ZEND_BEGIN_MODULE_GLOBALS(test)
 
 	/** Function cache */
 	HashTable *fcache;
+
+	/* Cache enabled */
+	unsigned int cache_enabled;
 
 	/* Max recursion control */
 	unsigned int recursive_lock;
@@ -72,6 +79,8 @@ ZEND_EXTERN_MODULE_GLOBALS(test)
 #else
 	#define ZEPHIR_VGLOBAL &(test_globals)
 #endif
+
+#define ZEPHIR_API ZEND_API
 
 #define zephir_globals_def test_globals
 #define zend_zephir_globals_def zend_test_globals

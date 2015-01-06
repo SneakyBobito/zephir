@@ -32,17 +32,17 @@ class ClassProperty
     /**
      * @var ClassDefinition
      */
-    protected $_classDefinition;
+    protected $classDefinition;
 
-    protected $_visibility;
+    protected $visibility;
 
-    protected $_name;
+    protected $name;
 
     protected $defaultValue;
 
-    protected $_docblock;
+    protected $docblock;
 
-    protected $_original;
+    protected $original;
 
     /**
      *
@@ -58,17 +58,17 @@ class ClassProperty
 
         $this->checkVisibility($visibility, $name, $original);
 
-        $this->_classDefinition = $classDefinition;
-        $this->_visibility = $visibility;
-        $this->_name = $name;
-        $this->_defaultValue = $defaultValue;
-        $this->_docblock = $docBlock;
-        $this->_original = $original;
+        $this->classDefinition = $classDefinition;
+        $this->visibility = $visibility;
+        $this->name = $name;
+        $this->defaultValue = $defaultValue;
+        $this->docblock = $docBlock;
+        $this->original = $original;
 
-        if (!is_array($this->_defaultValue)) {
-            $this->_defaultValue = array();
-            $this->_defaultValue['type'] = 'null';
-            $this->_defaultValue['value'] = null;
+        if (!is_array($this->defaultValue)) {
+            $this->defaultValue = array();
+            $this->defaultValue['type'] = 'null';
+            $this->defaultValue['value'] = null;
         }
     }
 
@@ -79,7 +79,7 @@ class ClassProperty
      */
     public function getClassDefinition()
     {
-        return $this->_classDefinition;
+        return $this->classDefinition;
     }
 
     /**
@@ -89,7 +89,7 @@ class ClassProperty
      */
     public function getName()
     {
-        return $this->_name;
+        return $this->name;
     }
 
     /**
@@ -97,22 +97,22 @@ class ClassProperty
      */
     public function getValue()
     {
-        if ($this->_defaultValue['type'] == 'array') {
+        if ($this->defaultValue['type'] == 'array') {
             $result = array();
 
-            foreach ($this->_original['default']['left'] as $key) {
+            foreach ($this->original['default']['left'] as $key) {
                 $result[] = $key['value']['value'];
             }
 
-            $this->_defaultValue['value'] = $result;
+            $this->defaultValue['value'] = $result;
         }
 
-        return $this->_defaultValue['value'];
+        return $this->defaultValue['value'];
     }
 
     public function getType()
     {
-        return $this->_defaultValue['type'];
+        return $this->defaultValue['type'];
     }
 
     /**
@@ -120,7 +120,7 @@ class ClassProperty
      */
     public function getOriginal()
     {
-        return $this->_original;
+        return $this->original;
     }
 
     /**
@@ -152,7 +152,7 @@ class ClassProperty
     {
         $modifiers = array();
 
-        foreach ($this->_visibility as $visibility) {
+        foreach ($this->visibility as $visibility) {
 
             switch ($visibility) {
 
@@ -187,7 +187,7 @@ class ClassProperty
      */
     public function getDocBlock()
     {
-        return $this->_docblock;
+        return $this->docblock;
     }
 
     /**
@@ -197,7 +197,7 @@ class ClassProperty
      */
     public function isStatic()
     {
-        return in_array('static', $this->_visibility);
+        return in_array('static', $this->visibility);
     }
 
     /**
@@ -207,7 +207,7 @@ class ClassProperty
      */
     public function isPublic()
     {
-        return in_array('public', $this->_visibility);
+        return in_array('public', $this->visibility);
     }
 
     /**
@@ -217,7 +217,7 @@ class ClassProperty
      */
     public function isProtected()
     {
-        return in_array('protected', $this->_visibility);
+        return in_array('protected', $this->visibility);
     }
 
     /**
@@ -227,7 +227,7 @@ class ClassProperty
      */
     public function isPrivate()
     {
-        return in_array('private', $this->_visibility);
+        return in_array('private', $this->visibility);
     }
 
     /**
@@ -238,19 +238,19 @@ class ClassProperty
      */
     public function compile(CompilationContext $compilationContext)
     {
-        switch ($this->_defaultValue['type']) {
+        switch ($this->defaultValue['type']) {
             case 'long':
             case 'int':
             case 'string':
             case 'double':
             case 'bool':
-                $this->declareProperty($compilationContext, $this->_defaultValue['type'], $this->_defaultValue['value']);
+                $this->declareProperty($compilationContext, $this->defaultValue['type'], $this->defaultValue['value']);
                 break;
 
             case 'array':
             case 'empty-array':
                 if ($this->isStatic()) {
-                    throw new CompilerException('Cannot define static property with default value: ' . $this->_defaultValue['type'], $this->_original);
+                    throw new CompilerException('Cannot define static property with default value: ' . $this->defaultValue['type'], $this->original);
                 }
 
                 $constructMethod = $compilationContext->classDefinition->getMethod('__construct');
@@ -269,8 +269,18 @@ class ClassProperty
                         }
 
                         if ($needLetStatementAdded) {
-                            $statements[] = $letStatement;
-                            $statementsBlock->setStatements($statements);
+                            $newStatements = array();
+
+                            /**
+                             * Start from let statement
+                             */
+                            $newStatements[] = $letStatement;
+
+                            foreach ($statements as $statement) {
+                                $newStatements[] = $statement;
+                            }
+
+                            $statementsBlock->setStatements($newStatements);
                             $constructMethod->setStatementsBlock($statementsBlock);
                             $compilationContext->classDefinition->getEventsManager()->dispatch('setMethod', array($constructMethod));
                         }
@@ -295,18 +305,18 @@ class ClassProperty
                 }
                 //continue
             case 'null':
-                $this->declareProperty($compilationContext, $this->_defaultValue['type'], null);
+                $this->declareProperty($compilationContext, $this->defaultValue['type'], null);
                 break;
 
             case 'static-constant-access':
-                $expression = new Expression($this->_defaultValue);
+                $expression = new Expression($this->defaultValue);
                 $compiledExpression = $expression->compile($compilationContext);
 
                 $this->declareProperty($compilationContext, $compiledExpression->getType(), $compiledExpression->getCode());
                 break;
 
             default:
-                throw new CompilerException('Unknown default type: ' . $this->_defaultValue['type'], $this->_original);
+                throw new CompilerException('Unknown default type: ' . $this->defaultValue['type'], $this->original);
         }
     }
 
@@ -317,10 +327,13 @@ class ClassProperty
     {
         return new LetStatementBuilder(array(
             'assign-type' => 'object-property',
-            'operator' => 'assign',
-            'variable' => 'this',
-            'property' => $this->_name,
-        ), $this->_original['default']);
+            'operator'    => 'assign',
+            'variable'    => 'this',
+            'property'    => $this->name,
+            'file'        => $this->original['default']['file'],
+            'line'        => $this->original['default']['line'],
+            'char'        => $this->original['default']['char'],
+        ), $this->original['default']);
     }
 
     /**
@@ -358,27 +371,33 @@ class ClassProperty
         }
 
         switch ($type) {
+
             case 'long':
             case 'int':
                 $codePrinter->output("zend_declare_property_long(" . $compilationContext->classDefinition->getClassEntry() . ", SL(\"" . $this->getName() . "\"), " . $value . ", " . $this->getVisibilityAccesor() . " TSRMLS_CC);");
                 break;
+
             case 'double':
                 $codePrinter->output("zend_declare_property_double(" . $compilationContext->classDefinition->getClassEntry() . ", SL(\"" . $this->getName() . "\"), " . $value . ", " . $this->getVisibilityAccesor() . " TSRMLS_CC);");
                 break;
+
             case 'bool':
                 $codePrinter->output("zend_declare_property_bool(" . $compilationContext->classDefinition->getClassEntry() . ", SL(\"" . $this->getName() . "\"), ".$this->getBooleanCode($value).", " . $this->getVisibilityAccesor() . " TSRMLS_CC);");
                 break;
+
             case Types::CHAR:
             case Types::STRING:
                 $codePrinter->output("zend_declare_property_string(" . $compilationContext->classDefinition->getClassEntry() . ", SL(\"" . $this->getName() . "\"), \"" . Utils::addSlashes($value, true, $type) . "\", " . $this->getVisibilityAccesor() . " TSRMLS_CC);");
                 break;
+
             case 'array':
             case 'empty-array':
             case 'null':
                 $codePrinter->output("zend_declare_property_null(" . $compilationContext->classDefinition->getClassEntry() . ", SL(\"" . $this->getName() . "\"), " . $this->getVisibilityAccesor() . " TSRMLS_CC);");
                 break;
+
             default:
-                throw new CompilerException('Unknown default type: ' . $type, $this->_original);
+                throw new CompilerException('Unknown default type: ' . $type, $this->original);
         }
 
     }

@@ -309,7 +309,7 @@ PHP_METHOD(Test_Strings, testHardcodedMultilineString) {
 PHP_METHOD(Test_Strings, testEchoMultilineString) {
 
 
-	php_printf("\n            Hello world\n        ");
+	php_printf("%s", "\n            Hello world\n        ");
 
 }
 
@@ -331,7 +331,7 @@ PHP_METHOD(Test_Strings, testWellEscapedMultilineString) {
 
 
 	ZEPHIR_SINIT_VAR(_0);
-	ZVAL_STRING(&_0, "\n            \\\"\}\$hello\$\\\"\'\n        ", 0);
+	ZVAL_STRING(&_0, "\n            \\\"\\}\\$hello\\$\\\"\\'\n        ", 0);
 	zephir_fast_trim(return_value, &_0, NULL , ZEPHIR_TRIM_BOTH TSRMLS_CC);
 	return;
 

@@ -7,6 +7,8 @@ namespace Test;
 
 class Arithmetic
 {
+	protected tmp1 = 100;
+
 	/* ---------- SUM ----------------*/
 
 	public function intSum()
@@ -77,6 +79,13 @@ class Arithmetic
 		return c;
 	}
 
+	public function boolSumExpression()
+	{
+		boolean a;
+		let a = true;
+		return a + exp(0);
+	}
+
 	public function doubleSum()
 	{
 		double a, b, c;
@@ -113,6 +122,18 @@ class Arithmetic
 
 		let c = 1.0 + 2.0;
 		return c;
+	}
+
+	public function doubleSumExpression()
+	{
+		return 1.0 + exp(0);
+	}
+
+	public function doubleSumVarExpression()
+	{
+		double a;
+		let a = 1.0;
+		return a + exp(0);
 	}
 
 	public function varSum()
@@ -670,15 +691,26 @@ class Arithmetic
 		return c;
 	}
 
-	public function int2Sub()
+	public function intLetSub()
 	{
-		int a, c;
+		int b, c;
 
-		let a = 1,
-			c = a - 2;
+		let c = 1,
+			b = 2,
+			c -= b;
 
 		return c;
 	}
+
+    public function intSub2()
+    {
+        int a, c;
+
+        let a = 1,
+            c = a - 2;
+
+        return c;
+    }
 
 	public function intSubSimple()
 	{
@@ -1368,5 +1400,16 @@ class Arithmetic
 		var a;
 		let a = -b;
 		return a;
+	}
+
+	public function div1()
+	{
+		var a = 100;
+		return (a - 1) / 4;
+	}
+
+	public function div2()
+	{
+		return (this->tmp1 - 1) / 4;
 	}
 }

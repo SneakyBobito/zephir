@@ -27,32 +27,78 @@ namespace Zephir;
 class Utils
 {
     /**
+     * Prepares a class name to be used as a C-string
+     *
+     * @param string $className
+     * @return string
+     */
+    public static function escapeClassName($className)
+    {
+        return str_replace('\\', '\\\\', $className);
+    }
+
+    /**
      * Prepares a string to be used as a C-string
      *
      * @param string $str
      * @param bool $escapeSlash
+     * @param int $type
      * @return string
      */
-    public static function addSlashes($str, $escapeSlash = false, $type = Types::STRING)
+    public static function addSlashes($str, $escapeSlash = false)
     {
-        /**
-         * @todo Need fix because we need context in what quet it was declared '' or ""
-         */
-        if ($type == Types::STRING) {
-            $str = str_replace('\"', '"', $str);
+        $newstr = "";
+        $after = null;
+        $before = null;
+        $length = strlen($str);
+        for ($i = 0; $i < $length; $i++) {
+
+            $ch = substr($str, $i, 1);
+            if ($i != ($length -1)) {
+                $after = substr($str, $i + 1, 1);
+            } else {
+                $after = null;
+            }
+
+            switch ($ch) {
+                case '"':
+                    $newstr .= "\\" . '"';
+                    break;
+                case "\n":
+                    $newstr .= "\\" . 'n';
+                    break;
+                case "\t":
+                    $newstr .= "\\" . 't';
+                    break;
+                case "\r":
+                    $newstr .= "\\" . 'r';
+                    break;
+                case "\v":
+                    $newstr .= "\\" . 'v';
+                    break;
+                case '\\':
+                    switch ($after) {
+                        case "n":
+                        case "v":
+                        case "t":
+                        case "r":
+                        case '"':
+                        case "\\":
+                            $newstr .= $ch . $after;
+                            $i++;
+                            $before = null;
+                            continue;
+                        default:
+                            $newstr .= "\\\\";
+                            break;
+                    }
+                    break;
+                default:
+                    $newstr .= $ch;
+            }
+            $before = $ch;
         }
-
-        if ($escapeSlash) {
-            $str = addslashes($str);
-        }
-
-        $str = str_replace("\n", "\\n", $str);
-        $str = str_replace("\r", "\\r", $str);
-        $str = str_replace("\t", "\\t", $str);
-
-        //$str = preg_replace('#\\\\([^nrt"])#', '\\\\$1', $str);
-
-        return $str;
+        return $newstr;
     }
 
     /**
@@ -76,10 +122,10 @@ class Utils
     public static function checkAndWriteIfNeeded($content, $path)
     {
         if (file_exists($path)) {
-            $content_md5 = md5($content);
-            $existing_md5 = md5_file($path);
+            $contentMd5 = md5($content);
+            $existingMd5 = md5_file($path);
 
-            if ($content_md5 != $existing_md5) {
+            if ($contentMd5 != $existingMd5) {
                 file_put_contents($path, $content);
                 return true;
             }
@@ -95,6 +141,8 @@ class Utils
      * Transform class/interface name to FQN format
      *
      * @param string $className
+     * @param string $currentNamespace
+     * @param AliasManager $aliasManager
      * @return string
      */
     public static function getFullName($className, $currentNamespace, AliasManager $aliasManager = null)
@@ -119,10 +167,24 @@ class Utils
             }
 
             // Relative class/interface name
-            return $currentNamespace . '\\' . $className;
-        } else {
-            // Absolute class/interface name
-            return substr($className, 1);
+            if ($currentNamespace) {
+                return $currentNamespace . '\\' . $className;
+            } else {
+                return $className;
+            }
         }
+
+        // Absolute class/interface name
+        return substr($className, 1);
+    }
+
+    /**
+     * Check if the host OS is windows
+     *
+     * @return boolean
+     */
+    public static function isWindows()
+    {
+        return strncasecmp(PHP_OS, 'WIN', 3) == 0;
     }
 }

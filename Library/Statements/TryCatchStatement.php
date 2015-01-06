@@ -41,7 +41,7 @@ class TryCatchStatement extends StatementAbstract
      */
     public function compile(CompilationContext $compilationContext)
     {
-        $codePrinter = &$compilationContext->codePrinter;
+        $codePrinter = $compilationContext->codePrinter;
 
         $compilationContext->insideTryCatch++;
 
@@ -65,6 +65,13 @@ class TryCatchStatement extends StatementAbstract
         $compilationContext->insideTryCatch--;
 
         if (isset($this->_statement['catches'])) {
+
+            /**
+             * Check if there was an exception
+             */
+            $codePrinter->output('if (EG(exception)) {');
+            $codePrinter->increaseLevel();
+
             foreach ($this->_statement['catches'] as $catch) {
 
                 if (isset($catch['variable'])) {
@@ -76,12 +83,13 @@ class TryCatchStatement extends StatementAbstract
                     $variable = $compilationContext->symbolTable->getTempVariableForWrite('variable', $compilationContext, $compilationContext);
                 }
 
+                $codePrinter->output('ZEPHIR_CPY_WRT(' . $variable->getName() . ', EG(exception));');
+
                 /**
                  * @TODO, use a builder here
                  */
                 $variable->setIsInitialized(true, $compilationContext, $catch);
                 $variable->setMustInitNull(true);
-                $codePrinter->output('ZEPHIR_CPY_WRT(' . $variable->getName() . ', EG(exception));');
 
                 /**
                  * Check if any of the classes in the catch block match the thrown exception
@@ -92,11 +100,11 @@ class TryCatchStatement extends StatementAbstract
                         new BinaryOperatorBuilder(
                             'instanceof',
                             new VariableBuilder($variable->getName()),
-                            new VariableBuilder('\\' . $class['value'])
+                            new VariableBuilder($class['value'])
                         ),
                         new StatementsBlockBuilder(array_merge(
                             array(array('type' => 'cblock', 'value' => 'zend_clear_exception(TSRMLS_C);')),
-                            $catch['statements']
+                            isset($catch['statements']) ? $catch['statements'] : array()
                         ), true)
                     );
 
@@ -109,6 +117,9 @@ class TryCatchStatement extends StatementAbstract
                 }
 
             }
+
+            $codePrinter->decreaseLevel();
+            $codePrinter->output('}');
 
         } else {
             $codePrinter->output('zend_clear_exception(TSRMLS_C);');

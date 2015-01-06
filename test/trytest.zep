@@ -153,4 +153,15 @@ class TryTest
 		return false;
 	}
 
+
+    public function testTry11()
+    {
+        var ex;
+
+        try {
+            return "test";
+        } catch \Exception, ex {
+
+        }
+    }
 }

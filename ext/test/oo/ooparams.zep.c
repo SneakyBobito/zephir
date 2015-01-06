@@ -17,6 +17,7 @@
 #include "kernel/operators.h"
 #include "ext/spl/spl_exceptions.h"
 #include "kernel/exception.h"
+#include "kernel/object.h"
 
 
 /**
@@ -163,7 +164,7 @@ PHP_METHOD(Test_Oo_OoParams, setStrictAverage) {
 		RETURN_NULL();
 	}
 
-		average = Z_DVAL_P(average_param);
+	average = Z_DVAL_P(average_param);
 
 
 	RETURN_DOUBLE(average);
@@ -183,8 +184,8 @@ PHP_METHOD(Test_Oo_OoParams, setStrictName) {
 		RETURN_MM_NULL();
 	}
 
-	if (unlikely(Z_TYPE_P(name_param) == IS_STRING)) {
-		name = name_param;
+	if (likely(Z_TYPE_P(name_param) == IS_STRING)) {
+		zephir_get_strval(name, name_param);
 	} else {
 		ZEPHIR_INIT_VAR(name);
 		ZVAL_EMPTY_STRING(name);
@@ -216,12 +217,7 @@ PHP_METHOD(Test_Oo_OoParams, setStrictList) {
 
 	zephir_fetch_params(0, 1, 0, &someList_param);
 
-	if (unlikely(Z_TYPE_P(someList_param) != IS_ARRAY)) {
-		zephir_throw_exception_string(spl_ce_InvalidArgumentException, SL("Parameter 'someList' must be an array") TSRMLS_CC);
-		RETURN_NULL();
-	}
-
-		someList = someList_param;
+	someList = someList_param;
 
 
 
@@ -359,7 +355,8 @@ PHP_METHOD(Test_Oo_OoParams, setObject) {
 
 
 
-	RETURN_CCTORW(obj);
+	RETVAL_ZVAL(obj, 1, 0);
+	return;
 
 }
 
@@ -371,7 +368,8 @@ PHP_METHOD(Test_Oo_OoParams, setCallable) {
 
 
 
-	RETURN_CCTORW(obj);
+	RETVAL_ZVAL(obj, 1, 0);
+	return;
 
 }
 
@@ -383,7 +381,25 @@ PHP_METHOD(Test_Oo_OoParams, setResource) {
 
 
 
-	RETURN_CCTORW(obj);
+	RETVAL_ZVAL(obj, 1, 0);
+	return;
+
+}
+
+PHP_METHOD(Test_Oo_OoParams, setObjectClassCast) {
+
+	zval *parameter;
+
+	zephir_fetch_params(0, 1, 0, &parameter);
+
+
+
+	if (!(zephir_instance_of_ev(parameter, test_oo_param_ce TSRMLS_CC))) {
+		ZEPHIR_THROW_EXCEPTION_DEBUG_STRW(spl_ce_InvalidArgumentException, "Parameter 'parameter' must be an instance of 'Test\\Oo\\Param'", "", 0);
+		return;
+	}
+	RETVAL_ZVAL(parameter, 1, 0);
+	return;
 
 }
 

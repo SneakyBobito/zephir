@@ -27,18 +27,33 @@ namespace Zephir;
  */
 class GlobalConstant
 {
-    private $_name;
+    protected $name;
 
+    /**
+     * Creates a new global constant
+     *
+     * @param string $name
+     */
     public function __construct($name)
     {
-        $this->_name = $name;
+        $this->name = $name;
     }
 
+    /**
+     * Returns global constant name
+     *
+     * @return string
+     */
     public function getName()
     {
-        return $this->_name;
+        return $this->name;
     }
 
+    /**
+     * Check if the global constant is temporal
+     *
+     * @return boolean
+     */
     public function isTemporal()
     {
         return false;

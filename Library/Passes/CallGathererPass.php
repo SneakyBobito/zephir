@@ -92,9 +92,9 @@ class CallGathererPass
 
     public function passLetStatement(array $statement)
     {
-        foreach ($statement['assignments'] as $assigment) {
-            if (isset($assigment['expr'])) {
-                $this->passExpression($assigment['expr']);
+        foreach ($statement['assignments'] as $assignment) {
+            if (isset($assignment['expr'])) {
+                $this->passExpression($assignment['expr']);
             }
         }
     }
@@ -152,6 +152,9 @@ class CallGathererPass
             case 'variable':
             case 'constant':
             case 'empty-array':
+            case 'closure':
+            case 'closure-arrow':
+            case 'reference':
                 break;
 
             case 'div':
@@ -175,6 +178,8 @@ class CallGathererPass
             case 'greater':
             case 'greater-equal':
             case 'less-equal':
+            case 'irange':
+            case 'erange':
                 $this->passExpression($expression['left']);
                 $this->passExpression($expression['right']);
                 break;

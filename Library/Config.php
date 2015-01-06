@@ -44,6 +44,7 @@ class Config
         'warnings' => array(
             'unused-variable'                    => true,
             'unused-variable-external'           => false,
+            'possible-wrong-parameter'           => true,
             'possible-wrong-parameter-undefined' => false,
             'nonexistent-function'               => true,
             'nonexistent-class'                  => true,
@@ -80,7 +81,10 @@ class Config
         'description' => '',
         'author'      => '',
         'version'     => '0.0.1',
-        'verbose'     => false
+        'verbose'     => false,
+        'requires' => array(
+            'extensions'    => array()
+        )
     );
 
     protected $_changed = false;
@@ -92,10 +96,12 @@ class Config
     public function __construct()
     {
         if (file_exists('config.json')) {
+
             $config = json_decode(file_get_contents('config.json'), true);
             if (!is_array($config)) {
                 throw new Exception("config.json is not valid or there is no Zephir extension initialized in this directory");
             }
+
             foreach ($config as $key => $configSection) {
                 if (!is_array($configSection)) {
                     $this->_config[$key] = $configSection;
@@ -109,6 +115,8 @@ class Config
     }
 
     /**
+     * Retrieves a configuration setting
+     *
      * @param $key
      * @param null $namespace
      * @return mixed
@@ -133,6 +141,8 @@ class Config
     }
 
     /**
+     * Changes a configuration setting
+     *
      * @param $key
      * @param $value
      * @param null $namespace
@@ -153,16 +163,12 @@ class Config
      */
     public function saveOnExit()
     {
-        if ($this->_changed) {
-            /**
-             * Above PHP 5.4
-             */
+        if ($this->_changed && !file_exists('config.json')) {
             if (defined('JSON_PRETTY_PRINT')) {
                 $config = json_encode($this->_config, JSON_PRETTY_PRINT);
             } else {
                 $config = json_encode($this->_config);
             }
-
             file_put_contents('config.json', $config);
         }
     }

@@ -27,12 +27,12 @@ use Zephir\Expression;
 use Zephir\CompiledExpression;
 use Zephir\Compiler;
 use Zephir\Utils;
-use Zephir\GlobalConstant;
+use Zephir\Statements\LetStatement;
 
 /**
  * ExportSymbol
  *
- * Exports symbol to a
+ * Exports a symbol to the current PHP symbol table using a variable as parameter
  */
 class ExportSymbol
 {
@@ -50,8 +50,33 @@ class ExportSymbol
     {
         $codePrinter = $compilationContext->codePrinter;
 
-        $codePrinter->output('if (zephir_set_symbol(' . $symbolVariable->getName() . ', ' . $resolvedExpr->getCode() . ' TSRMLS_CC) == FAILURE){');
-        $codePrinter->output('  return;');
+        $variable = $compilationContext->symbolTable->getTempVariable('variable', $compilationContext, $statement);
+        $variable->setMustInitNull(true);
+
+        $letStatement = new LetStatement(array(
+            'type' => 'let',
+            'assignments' => array(
+                array(
+                    'assign-type' => 'variable',
+                    'variable' => $variable->getName(),
+                    'operator' => 'assign',
+                    'expr' => array(
+                        'type'  => $resolvedExpr->getType(),
+                        'value' => $resolvedExpr->getCode(),
+                        'file'  => $statement['file'],
+                        'line'  => $statement['line'],
+                        'char'  => $statement['char'],
+                    ),
+                    'file'  => $statement['file'],
+                    'line'  => $statement['line'],
+                    'char'  => $statement['char'],
+                )
+            )
+        ));
+        $letStatement->compile($compilationContext);
+
+        $codePrinter->output('if (zephir_set_symbol(' . $symbolVariable->getName() . ', ' . $variable->getName() . ' TSRMLS_CC) == FAILURE){');
+        $codePrinter->output("\t" . 'return;');
         $codePrinter->output('}');
     }
 }

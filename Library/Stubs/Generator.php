@@ -32,6 +32,15 @@ use Zephir\Config;
 class Generator
 {
     /**
+     * Not php visible style variants
+     * @var array
+     */
+    protected $ignoreModifiers = array(
+        'inline',
+        'scoped'
+    );
+
+    /**
      * @var CompilerFile[]
      */
     protected $files;
@@ -59,12 +68,15 @@ class Generator
     public function generate($path)
     {
         $namespace = $this->config->get('namespace');
+
         foreach ($this->files as $file) {
             $class = $file->getClassDefinition();
             $source = $this->buildClass($class);
 
             $filename = ucfirst($class->getName()) . '.zep.php';
-            $filePath = $path . str_replace($namespace, '', str_replace($namespace . '\\', '', strtolower($class->getNamespace())));
+            $filePath = $path . str_replace($namespace, '', str_replace($namespace . '\\\\', DIRECTORY_SEPARATOR, strtolower($class->getNamespace())));
+            $filePath = str_replace('\\', DIRECTORY_SEPARATOR, $filePath);
+            $filePath = str_replace(DIRECTORY_SEPARATOR . DIRECTORY_SEPARATOR, DIRECTORY_SEPARATOR, $filePath);
 
             if (!is_dir($filePath)) {
                 mkdir($filePath, 0777, true);
@@ -93,18 +105,18 @@ EOF;
         $source .= $class->getType() . ' ' . $class->getName();
 
         if ($extendsClassDefinition = $class->getExtendsClassDefinition()) {
-            if ($extendsClassDefinition instanceof \ReflectionClass) {
-                $source .= ' extends \\' . $extendsClassDefinition->getName();
-            } else {
                 $source .= ' extends \\' . $extendsClassDefinition->getCompleteName();
-            }
+        } elseif ($extends = $class->getExtendsClass()) {
+                $source .= ' extends \\' . $extends;
         }
 
         if ($implementedInterfaces = $class->getImplementedInterfaces()) {
             $interfaces = array_map(function ($val) {
                 return '\\' . $val;
             }, $implementedInterfaces);
-            $source .= ' implements ' . join(', ', $interfaces);
+
+            $keyword = $class->getType() == 'interface' ? ' extends ' : ' implements ';
+            $source .= $keyword . join(', ', $interfaces);
         }
 
         $source .= PHP_EOL . '{' . PHP_EOL;
@@ -127,8 +139,9 @@ EOF;
     }
 
     /**
-     * @param ClassProperty $property
      *
+     *
+     * @param ClassProperty $property
      * @return string
      */
     protected function buildProperty(ClassProperty $property)
@@ -196,45 +209,29 @@ EOF;
      */
     protected function buildMethod(ClassMethod $method, $isInterface)
     {
-        $modifier = implode(' ', $method->getVisibility());
-        $modifier = str_replace(' inline', '', $modifier);
-        $modifier = str_replace(' scoped', '', $modifier);
-
+        $modifier = implode(' ', array_diff($method->getVisibility(), $this->ignoreModifiers));
         $docBlock = new MethodDocBlock($method, 4);
 
         $parameters = array();
         $methodParameters = $method->getParameters();
+        $aliasManager = $method->getClassDefinition()->getAliasManager();
 
         if ($methodParameters) {
             foreach ($methodParameters->getParameters() as $parameter) {
-                $paramStr = '$' . $parameter['name'];
+                $paramStr = '';
+                if (isset($parameter['cast'])) {
+                    if ($aliasManager->isAlias($parameter['cast']['value'])) {
+                        $cast = '\\' . $aliasManager->getAlias($parameter['cast']['value']);
+                    } else {
+                        $cast = $parameter['cast']['value'];
+                    }
+                    $paramStr .= $cast . ' ';
+                }
+
+                $paramStr .= '$' . $parameter['name'];
 
                 if (isset($parameter['default'])) {
-                    $paramStr .= ' = ';
-
-                    switch ($parameter['default']['type']) {
-                        case 'null':
-                            $paramStr .= 'null';
-                            break;
-                        case 'string':
-                            $paramStr .= '"' . $parameter['default']['value'] . '"';
-                            break;
-                        case 'empty-array':
-                            $paramStr .= 'array()';
-                            break;
-                        /**
-                         * @todo fix it
-                         */
-                        case 'array':
-                            $paramStr .= 'array()';
-                            break;
-                        case 'static-constant-access':
-                            $paramStr .= $parameter['default']['left']['value'] . '::' . $parameter['default']['right']['value'];
-                            break;
-                        default:
-                            $paramStr .= $parameter['default']['value'];
-                            break;
-                    }
+                    $paramStr .= ' = ' . $this->wrapPHPValue($parameter);
                 }
 
                 $parameters[] = $paramStr;
@@ -250,5 +247,44 @@ EOF;
         }
 
         return $docBlock . "\n" . $methodBody;
+    }
+
+    /**
+     * Prepare AST default value to PHP code print
+     *
+     * @param $parameter
+     * @return string
+     */
+    protected function wrapPHPValue($parameter)
+    {
+        switch ($parameter['default']['type']) {
+            case 'null':
+                return 'null';
+                break;
+            case 'string':
+                return '"' . $parameter['default']['value'] . '"';
+                break;
+            case 'empty-array':
+                return 'array()';
+                break;
+            case 'array':
+                $parameters = array();
+
+                foreach ($parameter['default']['left'] as $value) {
+                    $parameters[] = $this->wrapPHPValue(array(
+                        'default' => $value['value'],
+                        'type' => $value['value']['type']
+                    ));
+                }
+
+                return 'array('.implode(', ', $parameters).')';
+                break;
+            case 'static-constant-access':
+                return $parameter['default']['left']['value'] . '::' . $parameter['default']['right']['value'];
+                break;
+            default:
+                return $parameter['default']['value'];
+                break;
+        }
     }
 }

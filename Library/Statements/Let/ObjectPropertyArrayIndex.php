@@ -68,12 +68,12 @@ class ObjectPropertyArrayIndex extends ArrayIndex
             case 'variable':
                 break;
             default:
-                throw new CompilerException("Expression: " . $resolvedIndex->getType() . " cannot be used as index without cast", $statement['index-expr']);
+                throw new CompilerException("Expression: " . $resolvedIndex->getType() . " cannot be used as index without cast", $statement);
         }
 
         if ($resolvedIndex->getType() == 'variable') {
 
-            $indexVariable = $compilationContext->symbolTable->getVariableForRead($resolvedIndex->getCode(), $compilationContext, $statement['index-expr']);
+            $indexVariable = $compilationContext->symbolTable->getVariableForRead($resolvedIndex->getCode(), $compilationContext, $statement);
             switch ($indexVariable->getType()) {
                 case 'string':
                 case 'int':
@@ -123,6 +123,42 @@ class ObjectPropertyArrayIndex extends ArrayIndex
 
         }
 
+        /**
+         * Check if the variable to update is defined
+         */
+        if ($symbolVariable->getRealName() == 'this') {
+
+            $classDefinition = $compilationContext->classDefinition;
+            if (!$classDefinition->hasProperty($property)) {
+                throw new CompilerException("Class '" . $classDefinition->getCompleteName() . "' does not have a property called: '" . $property . "'", $statement);
+            }
+
+            $propertyDefinition = $classDefinition->getProperty($property);
+        } else {
+
+            /**
+             * If we know the class related to a variable we could check if the property
+             * is defined on that class
+             */
+            if ($symbolVariable->hasAnyDynamicType('object')) {
+
+                $classType = current($symbolVariable->getClassTypes());
+                $compiler = $compilationContext->compiler;
+
+                if ($compiler->isClass($classType)) {
+
+                    $classDefinition = $compiler->getClassDefinition($classType);
+                    if (!$classDefinition) {
+                        throw new CompilerException("Cannot locate class definition for class: " . $classType, $statement);
+                    }
+
+                    if (!$classDefinition->hasProperty($property)) {
+                        throw new CompilerException("Class '" . $classType . "' does not have a property called: '" . $property . "'", $statement);
+                    }
+                }
+            }
+        }
+
         switch ($indexVariable->getType()) {
 
             case 'variable':
@@ -166,6 +202,11 @@ class ObjectPropertyArrayIndex extends ArrayIndex
                         $tempVariable = $compilationContext->symbolTable->getTempVariableForWrite('variable', $compilationContext);
                         $codePrinter->output('ZVAL_STRING(' . $tempVariable->getName() . ', "' . $resolvedExpr->getCode() . '", 1);');
                         $codePrinter->output('zephir_update_property_array(' . $symbolVariable->getName() . ', SL("' . $property . '"), ' . $indexVariable->getName() . ', ' . $tempVariable->getName() . ' TSRMLS_CC);');
+                        break;
+
+                    case 'array':
+                        $variableExpr = $compilationContext->symbolTable->getVariableForRead($resolvedExpr->getCode(), $compilationContext, $statement['index-expr']);
+                        $codePrinter->output('zephir_update_property_array(' . $symbolVariable->getName() . ', SL("' . $property . '"), ' . $indexVariable->getName() . ', ' . $variableExpr->getName() . ' TSRMLS_CC);');
                         break;
 
                     case 'variable':
@@ -330,7 +371,7 @@ class ObjectPropertyArrayIndex extends ArrayIndex
             throw new CompilerException("Cannot mutate variable '" . $variable . "' because it is not initialized", $statement);
         }
 
-        if ($symbolVariable->getType() != 'variable') {
+        if (!$symbolVariable->isVariable()) {
             throw new CompilerException("Attempt to use variable type: " . $symbolVariable->getType() . " as object", $statement);
         }
 

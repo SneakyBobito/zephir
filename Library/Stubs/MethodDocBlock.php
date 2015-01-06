@@ -1,17 +1,41 @@
 <?php
 
+/*
+ +--------------------------------------------------------------------------+
+ | Zephir Language                                                          |
+ +--------------------------------------------------------------------------+
+ | Copyright (c) 2013-2014 Zephir Team and contributors                     |
+ +--------------------------------------------------------------------------+
+ | This source file is subject the MIT license, that is bundled with        |
+ | this package in the file LICENSE, and is available through the           |
+ | world-wide-web at the following url:                                     |
+ | http://zephir-lang.com/license.html                                      |
+ |                                                                          |
+ | If you did not receive a copy of the MIT license and are unable          |
+ | to obtain it through the world-wide-web, please send a note to           |
+ | license@zephir-lang.com so we can mail you a copy immediately.           |
+ +--------------------------------------------------------------------------+
+*/
+
 namespace Zephir\Stubs;
 
 use Zephir\ClassMethod;
 
+/**
+ * Stubs Generator
+ */
 class MethodDocBlock extends DocBlock
 {
     private $parameters = array();
+
     private $return;
+
+    private $shortcutName = '';
 
     public function __construct(ClassMethod $method, $indent = 4)
     {
         parent::__construct($method->getDocBlock(), $indent);
+        $this->shortcutName = $method->isShortcut() ? $method->getShortcutName() : '';
         $this->parseMethodParameters($method);
         $this->parseLines();
         if (!$this->return) {
@@ -50,10 +74,31 @@ class MethodDocBlock extends DocBlock
         $lines = array();
 
         foreach ($this->lines as $line) {
-            if (preg_match('#@(param|return) *(\w+)* *(\$\w+)* *(.+?)*#', $line, $matches) === 0) {
+            if (preg_match('#^@(param|return|var) +(.*)$#', $line, $matches) === 0) {
                 $lines[] = $line;
             } else {
-                list(, $docType, $type, $name, $description) = $matches;
+                list(, $docType, $tokens) = $matches;
+
+                $tokens = preg_split('/\s+/', $tokens, 3);
+                $type = $tokens[0];
+
+                if ($docType == 'var' && $this->shortcutName == 'set') {
+                    $docType = 'param';
+                    $name = array_keys($this->parameters);
+                    $name = $name[0];
+                } elseif ($docType == 'var' && $this->shortcutName == 'get') {
+                    $docType = 'return';
+                } else {
+                    $name = isset($tokens[1]) ? '$' . $tokens[1] : '';
+                }
+
+                // TODO: there must be a better way
+                if (strpos($type, 'Phalcon\\') === 0) {
+                    $type = str_replace('Phalcon\\', '\Phalcon\\', $type);
+                }
+
+                $description = isset($tokens[2]) ? $tokens[2] : '';
+
                 switch ($docType) {
                     case 'param':
                         $this->parameters[$name] = array($type, $description);
@@ -64,6 +109,7 @@ class MethodDocBlock extends DocBlock
                 }
             }
         }
+
         $this->lines = $lines;
     }
 
@@ -81,7 +127,11 @@ class MethodDocBlock extends DocBlock
         }
         foreach ($method->getParameters() as $parameter) {
             if (isset($parameter['data-type'])) {
-                $type = $parameter['data-type'];
+                if ($parameter['data-type'] == 'variable') {
+                    $type = 'mixed';
+                } else {
+                    $type = $parameter['data-type'];
+                }
             } elseif (isset($parameter['cast'])) {
                 $type = $parameter['cast']['value'];
             } else {

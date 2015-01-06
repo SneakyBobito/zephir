@@ -38,9 +38,11 @@ class EvalExpression
 
     protected $_unreachableElse = null;
 
-    protected $_lastVariable;
+    protected $_usedVariables = array();
 
     /**
+     * Skips the not operator by recursively optimizing the expression at its right
+     *
      * @param array $expr
      * @param CompilationContext $compilationContext
      */
@@ -52,6 +54,12 @@ class EvalExpression
         if ($expr['type'] == 'not') {
             $conditions = $this->optimize($expr['left'], $compilationContext);
             if ($conditions !== false) {
+                if ($this->_unreachable !== null) {
+                    $this->_unreachable = !$this->_unreachable;
+                }
+                if ($this->_unreachableElse !== null) {
+                    $this->_unreachableElse = !$this->_unreachableElse;
+                }
                 return '!(' . $conditions . ')';
             }
         }
@@ -190,10 +198,7 @@ class EvalExpression
 
                 }
 
-                /**
-                 * Update last variable used
-                 */
-                $this->_lastVariable = $variableRight;
+                $this->_usedVariables[] = $variableRight->getName();
 
                 /**
                  * Evaluate the variable
@@ -263,6 +268,14 @@ class EvalExpression
      */
     public function getEvalVariable()
     {
-        return $this->_lastVariable;
+        return end($this->_usedVariables);
+    }
+
+    /**
+     * @return array
+     */
+    public function getUsedVariables()
+    {
+        return $this->_usedVariables;
     }
 }

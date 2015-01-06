@@ -22,6 +22,8 @@ namespace Zephir\Statements;
 use Zephir\CompilationContext;
 use Zephir\CompilerException;
 use Zephir\Expression;
+use Zephir\Utils;
+use Zephir\Types;
 
 /**
  * ReturnStatement
@@ -78,6 +80,9 @@ class ReturnStatement extends StatementAbstract
                 }
             }
 
+            /**
+             * Fetches return_value and tries to return the value directly there
+             */
             $variable = $compilationContext->symbolTable->getVariable('return_value');
 
             $expr = new Expression($statement['expr']);
@@ -187,14 +192,19 @@ class ReturnStatement extends StatementAbstract
                     break;
 
                 case 'string':
-                    $codePrinter->output('RETURN_MM_STRING("' . $resolvedExpr->getCode() . '", 1);');
+                    $codePrinter->output('RETURN_MM_STRING("' . Utils::addSlashes($resolvedExpr->getCode()) . '", 1);');
                     break;
 
                 case 'array':
-                    $codePrinter->output('RETURN_CTOR(' . $resolvedExpr->getCode() . ');');
+                    if ($resolvedExpr->getCode() != 'return_value') {
+                        $codePrinter->output('RETURN_CTOR(' . $resolvedExpr->getCode() . ');');
+                    } else {
+                        $codePrinter->output('RETURN_MM();');
+                    }
                     break;
 
                 case 'variable':
+
                     if (!isset($symbolVariable)) {
                         $symbolVariable = $compilationContext->symbolTable->getVariableForRead($resolvedExpr->getCode(), $compilationContext, $statement['expr']);
                     }
@@ -226,14 +236,19 @@ class ReturnStatement extends StatementAbstract
                                 $codePrinter->output('RETURN_THIS();');
                             } else {
                                 if ($symbolVariable->getName() != 'return_value') {
-                                    if ($symbolVariable->isLocalOnly()) {
-                                        $codePrinter->output('RETURN_LCTOR(' . $symbolVariable->getName() . ');');
-                                    } else {
-                                        if (!$symbolVariable->isMemoryTracked()) {
-                                            $codePrinter->output('RETURN_CTOR(' . $symbolVariable->getName() . ');');
+                                    if (!$symbolVariable->isExternal()) {
+                                        if ($symbolVariable->isLocalOnly()) {
+                                            $codePrinter->output('RETURN_LCTOR(' . $symbolVariable->getName() . ');');
                                         } else {
-                                            $codePrinter->output('RETURN_CCTOR(' . $symbolVariable->getName() . ');');
+                                            if (!$symbolVariable->isMemoryTracked()) {
+                                                $codePrinter->output('RETURN_CTOR(' . $symbolVariable->getName() . ');');
+                                            } else {
+                                                $codePrinter->output('RETURN_CCTOR(' . $symbolVariable->getName() . ');');
+                                            }
                                         }
+                                    } else {
+                                        $codePrinter->output('RETVAL_ZVAL(' . $symbolVariable->getName() . ', 1, 0);');
+                                        $codePrinter->output('RETURN_MM();');
                                     }
                                 } else {
                                     $codePrinter->output('RETURN_MM();');

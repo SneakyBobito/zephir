@@ -39,4 +39,25 @@ class CompareTest extends \PHPUnit_Framework_TestCase
         $this->assertTrue($t->isLessThenPi(3.12));
         $this->assertTrue($t->isMoreThenPi(3.15));
     }
+
+    public function testVarWithStringEquals()
+    {
+        $t = new Compare;
+
+        $this->assertEquals('NOK', $t->testVarWithStringEquals('wrong testing'));
+        $this->assertEquals('NOK', $t->testVarWithStringEquals('another testing'));
+        $this->assertEquals('OK', $t->testVarWithStringEquals('testing'));
+        $this->assertEquals('NOK', $t->testVarWithStringEquals('testing nok'));
+    }
+
+    public function testEquals()
+    {
+        $t = new Compare();
+
+        $this->assertTrue($t->testVarEqualsNull(null));
+        $this->assertFalse($t->testVarEqualsNull(1));
+
+        $this->assertTrue($t->testNullEqualsVar(null));
+        $this->assertFalse($t->testNullEqualsVar(1));
+    }
 }

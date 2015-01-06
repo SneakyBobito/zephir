@@ -145,10 +145,9 @@ class MethodCall extends Call
          * Method calls only return zvals so we need to validate the target variable is also a zval
          */
         if (!$builtInType) {
-
             if ($isExpecting) {
 
-                if ($symbolVariable->getType() != 'variable') {
+                if (!$symbolVariable->isVariable()) {
                     throw new CompilerException("Returned values by functions can only be assigned to variant variables", $expression);
                 }
 
@@ -177,19 +176,41 @@ class MethodCall extends Call
                 $classDefinition = $compilationContext->classDefinition;
                 if (!$classDefinition->hasMethod($methodName)) {
                     if ($check) {
-                        throw new CompilerException("Class '" . $classDefinition->getCompleteName() . "' does not implement method: '" . $expression['name'] . "'", $expression);
+                        $found = false;
+                        $interfaces = $classDefinition->isAbstract() ? $classDefinition->getImplementedInterfaces() : null;
+                        if (is_array($interfaces)) {
+                            $compiler = $compilationContext->compiler;
+                            foreach ($interfaces as $interface) {
+                                $classInterfaceDefinition = $compiler->getClassDefinition($interface);
+                                if ($classInterfaceDefinition->hasMethod($methodName)) {
+                                    $found = true;
+                                    $classMethod = $classInterfaceDefinition->getMethod($methodName);
+                                    break;
+                                }
+                            }
+                        }
+                        if (!$found) {
+                            $possibleMethod = $classDefinition->getPossibleMethodName($expression['name']);
+                            if ($possibleMethod) {
+                                throw new CompilerException("Class '" . $classDefinition->getCompleteName() . "' does not implement method: '" . $expression['name'] . "'. Did you mean '" . $possibleMethod . "'?", $expression);
+                            } else {
+                                throw new CompilerException("Class '" . $classDefinition->getCompleteName() . "' does not implement method: '" . $expression['name'] . "'", $expression);
+                            }
+                        }
+                    }
+                } else {
+                    if ($check) {
+                        $classMethod = $classDefinition->getMethod($methodName);
                     }
                 }
 
                 if ($check) {
 
-                    $method = $classDefinition->getMethod($methodName);
-
                     /**
                      * Private methods must be called in their declaration scope
                      */
-                    if ($method->isPrivate()) {
-                        if ($method->getClassDefinition() != $classDefinition) {
+                    if ($classMethod->isPrivate()) {
+                        if ($classMethod->getClassDefinition() != $classDefinition) {
                             throw new CompilerException("Cannot call private method '" . $expression['name'] . "' out of its scope", $expression);
                         }
                     }
@@ -203,9 +224,7 @@ class MethodCall extends Call
                         $callNumberParameters = 0;
                     }
 
-                    $classMethod = $classDefinition->getMethod($methodName);
                     $expectedNumberParameters = $classMethod->getNumberOfRequiredParameters();
-
                     if (!$expectedNumberParameters && $callNumberParameters > 0) {
                         $numberParameters = $classMethod->getNumberOfParameters();
                         if ($callNumberParameters > $numberParameters) {
@@ -216,6 +235,8 @@ class MethodCall extends Call
                     if ($callNumberParameters < $expectedNumberParameters) {
                         throw new CompilerException("Method '" . $classDefinition->getCompleteName() . "::" . $expression['name'] . "' called with a wrong number of parameters, the method has: " . $expectedNumberParameters . ", passed: " . $callNumberParameters, $expression);
                     }
+
+                    $method = $classMethod;
                 }
 
             } else {
@@ -279,7 +300,7 @@ class MethodCall extends Call
                                  * We only check extension parameters if methods are extension methods
                                  * Internal methods may have invalid Reflection information
                                  */
-                                if ($method instanceof ClassMethod) {
+                                if ($method instanceof ClassMethod && !$method->isInternal()) {
 
                                     if (isset($expression['parameters'])) {
                                         $callNumberParameters = count($expression['parameters']);
@@ -419,9 +440,13 @@ class MethodCall extends Call
             if ($type == self::CALL_NORMAL) {
 
                 if (isset($method) && $method instanceof ClassMethod && isset($expression['parameters'])) {
+
                     $resolvedTypes = $this->getResolvedTypes();
                     $resolvedDynamicTypes = $this->getResolvedDynamicTypes();
+                    //$typeInference = $method->getStaticTypeInferencePass();
+
                     foreach ($method->getParameters() as $n => $parameter) {
+
                         if (isset($parameter['data-type'])) {
 
                             if (!isset($resolvedTypes[$n])) {
@@ -433,21 +458,78 @@ class MethodCall extends Call
                              */
                             if ($resolvedTypes[$n] != $parameter['data-type']) {
 
-                                /**
-                                 * Passing polymorphic variables to static typed parameters
-                                 * could lead to potential transformations
-                                 */
-                                if ($resolvedTypes[$n] == 'variable') {
-                                    if ($resolvedDynamicTypes[$n] != $parameter['data-type']) {
-                                        if ($resolvedDynamicTypes[$n] == 'undefined') {
-                                            $compilationContext->logger->warning("Passing possible incorrect type to parameter: " . $classDefinition->getCompleteName() . '::' . $parameter[0]['name'] . ', passing: ' . $resolvedDynamicTypes[$n] . ', ' . "expecting: " . $parameter[0]['data-type'], "possible-wrong-parameter-undefined", $expression);
+                                switch ($resolvedTypes[$n]) {
+
+                                    case 'bool':
+                                    case 'boolean':
+                                        switch ($parameter['data-type']) {
+
+                                            /* compatible types */
+                                            case 'bool':
+                                            case 'boolean':
+                                            case 'variable':
+                                                break;
+
+                                            default:
+                                                $compilationContext->logger->warning("Passing possible incorrect type for parameter: " . $classDefinition->getCompleteName() . '::' . $method->getName() . '(' . $parameter['name'] . '), passing: ' . $resolvedDynamicTypes[$n] . ', ' . "expecting: " . $parameter['data-type'], "possible-wrong-parameter", $expression);
+                                                break;
                                         }
-                                        //echo '1: ', $resolvedTypes[$n], ' ', $resolvedDynamicTypes[$n], ' ', $parameter[0]['data-type'], ' ', PHP_EOL;
-                                    }
-                                } else {
-                                    if ($parameter['data-type'] != 'variable') {
-                                        //echo '2: ', $resolvedTypes[$n], ' ', $resolvedDynamicTypes[$n], ' ', $parameter[0]['data-type'], ' ', PHP_EOL;
-                                    }
+                                        break;
+
+                                    case 'array':
+                                        switch ($parameter['data-type']) {
+
+                                            /* compatible types */
+                                            case 'array':
+                                            case 'variable':
+                                                break;
+
+                                            default:
+                                                $compilationContext->logger->warning("Passing possible incorrect type for parameter: " . $classDefinition->getCompleteName() . '::' . $method->getName() . '(' . $parameter['name'] . '), passing: ' . $resolvedDynamicTypes[$n] . ', ' . "expecting: " . $parameter['data-type'], "possible-wrong-parameter", $expression);
+                                                break;
+                                        }
+                                        break;
+
+                                    case 'callable':
+                                        switch ($parameter['data-type']) {
+
+                                            /* compatible types */
+                                            case 'callable':
+                                            case 'variable':
+                                                break;
+
+                                            default:
+                                                $compilationContext->logger->warning("Passing possible incorrect type for parameter: " . $classDefinition->getCompleteName() . '::' . $method->getName() . '(' . $parameter['name'] . '), passing: ' . $resolvedDynamicTypes[$n] . ', ' . "expecting: " . $parameter['data-type'], "possible-wrong-parameter", $expression);
+                                                break;
+                                        }
+                                        break;
+
+                                    case 'string':
+                                        switch ($parameter['data-type']) {
+
+                                            /* compatible types */
+                                            case 'string':
+                                            case 'variable':
+                                                break;
+
+                                            default:
+                                                $compilationContext->logger->warning("Passing possible incorrect type for parameter: " . $classDefinition->getCompleteName() . '::' . $method->getName() . '(' . $parameter['name'] . '), passing: ' . $resolvedDynamicTypes[$n] . ', ' . "expecting: " . $parameter['data-type'], "possible-wrong-parameter", $expression);
+                                                break;
+                                        }
+                                        break;
+
+                                    /**
+                                     * Passing polymorphic variables to static typed parameters
+                                     * could lead to potential unexpected type coercions
+                                     */
+                                    case 'variable':
+                                        if ($resolvedDynamicTypes[$n] != $parameter['data-type']) {
+                                            if ($resolvedDynamicTypes[$n] == 'undefined') {
+                                                $compilationContext->logger->warning("Passing possible incorrect type to parameter: " . $classDefinition->getCompleteName() . '::' . $parameter[$n]['name'] . ', passing: ' . $resolvedDynamicTypes[$n] . ', ' . "expecting: " . $parameter[$n]['data-type'], "possible-wrong-parameter-undefined", $expression);
+                                            }
+                                            //echo '1: ', $resolvedTypes[$n], ' ', $resolvedDynamicTypes[$n], ' ', $parameter[0]['data-type'], ' ', PHP_EOL;
+                                        }
+                                        break;
                                 }
                             }
                         }
@@ -481,7 +563,12 @@ class MethodCall extends Call
              * Check if the method call can have an inline cache
              */
             $methodCache = $compilationContext->cacheManager->getMethodCache();
-            $cachePointer = $methodCache->get($compilationContext, isset($method) ? $method : null);
+
+            $cachePointer = $methodCache->get(
+                $compilationContext,
+                isset($method) ? $method : null,
+                $variableVariable
+            );
 
             if (!count($params)) {
 
@@ -489,7 +576,7 @@ class MethodCall extends Call
                     if ($symbolVariable->getName() == 'return_value') {
                         $codePrinter->output('ZEPHIR_RETURN_CALL_METHOD(' . $variableVariable->getName() . ', "' . $methodName . '", ' . $cachePointer . ');');
                     } else {
-                        $codePrinter->output('ZEPHIR_CALL_METHOD(&' . $symbolVariable->getName() . ', ' . $variableVariable->getName() . ', "' . $methodName . '",  ' . $cachePointer . ');');
+                        $codePrinter->output('ZEPHIR_CALL_METHOD(&' . $symbolVariable->getName() . ', ' . $variableVariable->getName() . ', "' . $methodName . '", ' . $cachePointer . ');');
                     }
                 } else {
                     $codePrinter->output('ZEPHIR_CALL_METHOD(NULL, ' . $variableVariable->getName() . ', "' . $methodName . '", ' . $cachePointer . ');');
@@ -562,8 +649,6 @@ class MethodCall extends Call
             $codePrinter->output('zephir_check_temp_parameter(' . $checkVariable . ');');
         }
 
-        $this->addCallStatusOrJump($compilationContext);
-
         /**
          * We can mark temporary variables generated as idle
          */
@@ -583,6 +668,8 @@ class MethodCall extends Call
                 }
             }
         }
+
+        $this->addCallStatusOrJump($compilationContext);
 
         if ($isExpecting) {
             return new CompiledExpression('variable', $symbolVariable->getRealName(), $expression);

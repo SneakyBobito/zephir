@@ -19,8 +19,10 @@
 
 namespace Zephir\Cache;
 
-use Zephir\CompilationContext;
 use Zephir\Call;
+use Zephir\ClassMethod;
+use Zephir\Variable;
+use Zephir\CompilationContext;
 
 /**
  * MethodCache
@@ -48,6 +50,8 @@ class MethodCache
     protected $gatherer;
 
     /**
+     * MethodCache
+     *
      * @param CallGathererPass $gatherer
      */
     public function __construct($gatherer)
@@ -56,19 +60,51 @@ class MethodCache
     }
 
     /**
+     * Retrieves/Creates a function cache for a method call
+     *
      * @param CompilationContext $compilationContext
-     * @param ClassMethod $call
+     * @param ClassMethod $method
+     * @param Variable $caller
      */
-    public function get(CompilationContext $compilationContext, $method)
+    public function get(CompilationContext $compilationContext, $method, $caller)
     {
         if (!is_object($method)) {
+
+            /**
+             * Try to generate a cache based on the fact the variable is not modified within the loop block
+             */
+            if ($compilationContext->insideCycle && !$caller->isTemporal()) {
+
+                if (count($compilationContext->cycleBlocks) && $caller->getType() == 'variable') {
+
+                    $currentBlock = $compilationContext->cycleBlocks[count($compilationContext->cycleBlocks) - 1];
+
+                    if ($currentBlock->getMutateGatherer(true)->getNumberOfMutations($caller->getName()) == 0) {
+
+                        $functionCache = $compilationContext->symbolTable->getTempVariableForWrite('zephir_fcall_cache_entry', $compilationContext);
+                        $functionCache->setMustInitNull(true);
+                        $functionCache->setReusable(false);
+
+                        return '&' . $functionCache->getName();
+                    }
+                }
+            }
+
             return 'NULL';
         }
 
         if (!($method instanceof \ReflectionMethod)) {
 
-            if (isset($this->cache[$method->getClassDefinition()->getCompleteName()][$method->getName()])) {
-                return '&' . $this->cache[$method->getClassDefinition()->getCompleteName()][$method->getName()]->getName();
+            /**
+             * Avoid generate caches for external classes
+             */
+            if ($method->getClassDefinition()->isExternal()) {
+                return 'NULL';
+            }
+
+            $completeName = $method->getClassDefinition()->getCompleteName();
+            if (isset($this->cache[$completeName][$method->getName()])) {
+                return '&' . $this->cache[$completeName][$method->getName()]->getName();
             }
 
             if ($method->getClassDefinition()->isInterface()) {
@@ -78,6 +114,7 @@ class MethodCache
 
         if (!$compilationContext->insideCycle) {
             if (!($method instanceof \ReflectionMethod)) {
+
                 if (!$method->isPrivate() && !$method->isFinal() && !$method->getClassDefinition()->isFinal()) {
                     $gatherer = $this->gatherer;
                     if (is_object($gatherer)) {
@@ -99,11 +136,12 @@ class MethodCache
         } else {
             $functionCache = $compilationContext->symbolTable->getTempVariableForWrite('zephir_fcall_cache_entry', $compilationContext);
         }
+
         $functionCache->setMustInitNull(true);
         $functionCache->setReusable(false);
 
         if (!($method instanceof \ReflectionMethod)) {
-            $this->cache[$method->getClassDefinition()->getCompleteName()][$method->getName()] = $functionCache;
+            $this->cache[$completeName][$method->getName()] = $functionCache;
         }
 
         return '&' . $functionCache->getName();
