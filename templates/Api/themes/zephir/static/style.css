@@ -151,10 +151,21 @@ a.zep-button:hover{
 
 }
 
+ul.method-summary-list{
+    display: table;
+    width: 100%;
+}
+
 ul.method-summary-list li{
     border-bottom: 1px solid #C4ADDD;
     padding: 11px 0 4px 0;
-    height: 25px;
+    display: table-row;
+}
+
+ul.method-summary-list li>*{
+    display: table-cell;
+    height: 35px;
+    vertical-align: middle;
 }
 
 
@@ -170,10 +181,8 @@ ul.method-summary-list li:nth-child(even){
     font-size: 13px;
 }
 
-.method-summary-list .class-method .method-return{
-    float:left;
-    width:140px;
-    height: 100%;
+.method-summary-list .method-return{
+    width:200px;
 }
 
 .method-name{
@@ -251,6 +260,7 @@ ul.method-details-list li{
 }
 
 
+.namespace-header .namespace-name,
 .class-header .class-name{
     font-size: 20px;
     font-weight: bold;
@@ -260,7 +270,7 @@ ul.method-details-list li{
     margin-bottom: 5px;
 }
 
-
+.namespace-header .namespace-full-name>*,
 .class-header .class-full-name>*{
     display: inline;
     font-weight: bold;
@@ -278,6 +288,8 @@ ul.method-details-list li{
 }
 
 
+
+.namespace-header .class-type,
 .class-header .class-type{
     font-size: 19px;
     font-weight: bold;

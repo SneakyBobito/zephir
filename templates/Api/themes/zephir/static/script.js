@@ -95,6 +95,7 @@ var ZepDoc = (function($){
             var $nsItem = $("<li class='menu-ns'><a></a></li>");
             $nsItem.find("a").html(curNs.shortName);
             $nsItem.attr("data-ns-name",curNs.name);
+            $nsItem.attr("title",curNs.name);
 
             $nsItem.append(ZepDoc.drawMenuNode(curNs,fullData));
             $node.append($nsItem);
@@ -105,6 +106,7 @@ var ZepDoc = (function($){
             var curClass = fullData.allClasses[localData.classes[i]];
             var $cItem = $("<li class='menu-class'><a></a></li>");
             $cItem.find("a").html(curClass.shortname);
+            $cItem.attr("title",curClass.name);
 
             $cItem.find("a").attr("href", ZepCurrentPath  + "class/" + curClass.name.replace("\\","/") + ".html");
             $cItem.addClass( "type-" + curClass.type);
